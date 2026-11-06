@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    群益 SKCOM 宿主行程。SKCOM 是 COM 元件,要跑在 STA 執行緒並持續處理訊息迴圈,
+    所以獨立成一支 x64 exe:當掉或卡住不會拖垮呼叫端。
+    The Capital (群益) SKCOM host process. SKCOM is a COM component that needs an STA thread with a running
+    message loop, so it lives in its own x64 executable: a crash or a hang never takes the caller down.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <!-- 只用 WinForms 的訊息迴圈與同步內容,不開任何視窗。Only WinForms' message loop and sync context; no window. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- SKCOM 有 x86 / x64 兩版,這裡固定 x64。SKCOM ships x86 and x64 builds; this host is fixed to x64. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>Ozakboy.TradeKit.Capital.Host</AssemblyName>
+    <RootNamespace>Ozakboy.TradeKit.Capital.Host</RootNamespace>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      CA1303:主控台工具的訊息直接寫中文,不走資源檔。
+      CA1707 / IDE1006:COM 介面成員名稱照群益型別庫原樣(SKOSQuoteLib_RequestStocks、_ISKOSQuoteLibEvents),
+      改名會讓對照手冊變困難。
+      CA1303: console messages are written inline, not in resources.
+      CA1707 / IDE1006: COM member names follow Capital's type library verbatim so they match the vendor manual.
+    -->
+    <NoWarn>$(NoWarn);CA1303;CA1707;IDE1006</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Ozakboy.TradeKit.Capital.Host.Tests" />
+  </ItemGroup>
+
+</Project>
