@@ -19,6 +19,7 @@ internal sealed class CapitalHostProcess : IAsyncDisposable
     private const string LoginIdVariable = "CAPITAL_LOGIN_ID";
     private const string PasswordVariable = "CAPITAL_PASSWORD";
     private const string LogDirectoryVariable = "CAPITAL_LOG_DIR";
+    private const string ParentPidVariable = "CAPITAL_PARENT_PID";
 
     private readonly Process _process;
     private readonly Func<string, string> _mask;
@@ -98,6 +99,9 @@ internal sealed class CapitalHostProcess : IAsyncDisposable
         {
             environment[key] = value;
         }
+
+        // 宿主的父行程看門狗看這個 PID(不是機密)。The host's parent watchdog watches this PID; not a secret.
+        environment[ParentPidVariable] = Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         // 帳密只走子行程環境變數,最後才設,任何額外設定都蓋不掉。Credentials go only into the child's environment, set last.
         environment[LoginIdVariable] = credentials.LoginId;
@@ -246,6 +250,30 @@ internal sealed class CapitalHostProcess : IAsyncDisposable
             Kill();
             return true;
         }
+    }
+
+    /// <summary>
+    /// 把宿主行程放進 Job Object(父行程消失時由系統收掉它)。
+    /// Puts the host process into the Job Object, so the system ends it when the parent disappears.
+    /// </summary>
+    /// <param name="job">Job。The job.</param>
+    /// <param name="problem">失敗原因。Why it failed.</param>
+    /// <returns>成功時為 <see langword="true"/>。True on success.</returns>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public bool TryJoin(CapitalHostJob job, out string problem)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        return job.TryAssign(_process, out problem);
+    }
+
+    /// <summary>宿主行程是否在這個 job 裡(測試用)。Whether the host is in the job, for tests.</summary>
+    /// <param name="job">Job。The job.</param>
+    /// <returns>在 job 裡時為 <see langword="true"/>。True when in the job.</returns>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public bool IsIn(CapitalHostJob job)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        return job.Contains(_process);
     }
 
     /// <summary>終止整棵行程樹。Kills the whole process tree.</summary>
@@ -456,9 +484,7 @@ internal sealed class CapitalHostProcess : IAsyncDisposable
                 method,
                 CapitalWire.GetString(error, "code") ?? CapitalErrorCodes.ProtocolError,
                 CapitalWire.GetString(error, "message") ?? string.Empty,
-                CapitalWire.GetInt32(data, "skCode"),
-                CapitalWire.GetString(data, "skMessage"),
-                CapitalWire.GetString(data, "symbol"));
+                data);
         }
 
         return CapitalErrors.Protocol("回應既沒有 result 也沒有 error。The response has neither result nor error.");

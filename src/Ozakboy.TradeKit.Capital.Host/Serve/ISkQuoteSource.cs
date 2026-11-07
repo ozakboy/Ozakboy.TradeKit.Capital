@@ -1,9 +1,10 @@
 namespace Ozakboy.TradeKit.Capital.Host.Serve;
 
 /// <summary>
-/// 把 SKCOM(登入、海外報價連線、商品、訂閱、K 線與事件)隔在介面後面:協定層 <see cref="ServeHost"/> 只認這個介面,
-/// 真實作是 <c>SkComQuoteSource</c>,測試與假宿主以假實作驅動。回傳值一律是群益的原始代碼(0 = 成功)。
-/// Keeps SKCOM (login, the overseas quote connection, products, subscriptions, K-lines and events) behind an interface.
+/// 把 SKCOM(登入、海外報價連線、商品、訂閱、K 線與事件,以及國內報價的連線與歷史 K 線)隔在介面後面:協定層
+/// <see cref="ServeHost"/> 只認這個介面,真實作是 <c>SkComQuoteSource</c>,測試與假宿主以假實作驅動。回傳值一律是群益的原始代碼(0 = 成功)。
+/// Keeps SKCOM (login, the overseas quote connection, products, subscriptions, K-lines and events, plus the domestic
+/// quote connection and its historical K-lines) behind an interface.
 /// The protocol layer only knows this interface; the real implementation is <c>SkComQuoteSource</c> and tests and the
 /// fake host drive a fake one. Return values are Capital's raw codes (0 = success).
 /// </summary>
@@ -113,6 +114,55 @@ internal interface ISkQuoteSource : IDisposable
     /// <param name="quote">報價。The quote.</param>
     /// <returns>群益代碼。Capital's code.</returns>
     int GetStockByIndex(int index, out SkQuoteData quote);
+
+    // ── 國內報價(SKQuoteLib):目前只用歷史 K 線。Domestic quotes (SKQuoteLib); only historical K-lines for now. ──
+
+    /// <summary>
+    /// 國內報價連線狀態(<c>OnConnection</c> 的 nKind:3001 已連線、3002 斷線、3003 商品基本資料完成〔之後才能查〕)。
+    /// The domestic connection state (nKind of OnConnection: 3001 connected, 3002 disconnected, 3003 product data
+    /// loaded, after which queries work).
+    /// </summary>
+    event Action<int>? DomesticConnection;
+
+    /// <summary>國內歷史 K 一筆(<c>OnNotifyKLineData</c>:商品代碼, 資料)。One domestic K-line row (code, data).</summary>
+    event Action<string, string>? DomesticKLine;
+
+    /// <summary>
+    /// 國內歷史 K 一個請求送完(<c>OnKLineComplete</c>,實測內容 <c>##</c>;每個請求一則,0 筆時也有)。
+    /// One domestic K-line request finished (OnKLineComplete, measured "##"; one per request, even with no rows).
+    /// </summary>
+    event Action<string>? DomesticKLineComplete;
+
+    /// <summary>
+    /// 建立國內報價物件(SKQuoteLib)並掛上事件。在 <see cref="Open"/> 成功之後、登入之前呼叫(探針實測可行的順序)。
+    /// Creates the domestic quote object and attaches its events; called after <see cref="Open"/> succeeded and before
+    /// login, the order the probe measured to work.
+    /// </summary>
+    /// <returns>成功時為 <see langword="null"/>,否則為失敗原因。Null on success, otherwise the failure.</returns>
+    SkOpenFailure? OpenDomestic();
+
+    /// <summary>連國內報價主機(<c>SKQuoteLib_EnterMonitorLONG</c>)。Connects to the domestic quote server.</summary>
+    /// <returns>群益代碼。Capital's code.</returns>
+    int EnterDomesticMonitor();
+
+    /// <summary>離開國內報價主機(<c>SKQuoteLib_LeaveMonitor</c>)。Leaves the domestic quote server.</summary>
+    /// <returns>群益代碼。Capital's code.</returns>
+    int LeaveDomesticMonitor();
+
+    /// <summary>
+    /// 要國內歷史 K(<c>SKQuoteLib_RequestKLineAMByDate</c>)。回 0 表示送出;代碼不存在或沒權限立即回非 0(實測 9999、3023)。
+    /// Requests domestic historical K-lines; 0 means sent, and an unknown code or a missing permission answers non-zero
+    /// at once (measured 9999 and 3023).
+    /// </summary>
+    /// <param name="stockNo">商品代碼(例如 <c>TX00</c>)。The code, for example TX00.</param>
+    /// <param name="kLineType">0 分線、4 完整日線。0 minute, 4 full daily.</param>
+    /// <param name="outType">輸出格式(1 = 新版,實測用 1)。Output format; 1 = new format, as measured.</param>
+    /// <param name="tradeSession">0 全盤(含前一晚夜盤)、1 AM 盤。0 full session, 1 AM session.</param>
+    /// <param name="startDate">起始交易日 yyyyMMdd。First trading day.</param>
+    /// <param name="endDate">結束交易日 yyyyMMdd。Last trading day.</param>
+    /// <param name="minuteNumber">幾分 K(實測用 1)。Minutes per bar (1 as measured).</param>
+    /// <returns>群益代碼。Capital's code.</returns>
+    int RequestDomesticKLine(string stockNo, short kLineType, short outType, short tradeSession, string startDate, string endDate, short minuteNumber);
 }
 
 /// <summary>

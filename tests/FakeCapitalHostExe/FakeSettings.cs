@@ -63,8 +63,52 @@ internal sealed class FakeSettings
     public IReadOnlyList<TimeSpan> ReconnectDelays { get; private init; } =
         [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)];
 
+    // ── 國內報價(前綴 FAKE_CAPITAL_TW_)。Domestic quotes, prefix FAKE_CAPITAL_TW_. ──
+
+    /// <summary>OpenDomestic 失敗的 HRESULT。The HRESULT OpenDomestic fails with.</summary>
+    public int? TwOpenHResult { get; private init; }
+
+    /// <summary>國內 EnterMonitorLONG 的回傳代碼(非 0 = 國內不可用)。The domestic EnterMonitorLONG code.</summary>
+    public int TwEnterCode { get; private init; }
+
+    /// <summary>國內只送 3001、永遠不送 3003(驗證 3003 逾時 → 不可用)。Sends 3001 but never 3003.</summary>
+    public bool TwNoReady { get; private init; }
+
+    /// <summary>3001 之後多久送 3003(實測約 0.5 秒)。The delay from 3001 to 3003; about 0.5 s as measured.</summary>
+    public TimeSpan TwReadyDelay { get; private init; } = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>國內就緒後多久送 3002(每個行程只斷一次;重新 EnterMonitor 後再送 3001、3003)。When to send the domestic 3002.</summary>
+    public TimeSpan? TwDisconnectAfter { get; private init; }
+
+    /// <summary>一個請求最多幾筆(實測 60,000,超過保留最新、截掉最舊)。The per-request row cap; 60,000 as measured.</summary>
+    public int TwKLineLimit { get; private init; } = 60_000;
+
+    /// <summary>國內 K 線不送 OnKLineComplete(驗證逾時)。Never sends OnKLineComplete.</summary>
+    public bool TwNoComplete { get; private init; }
+
+    /// <summary>父行程看門狗的檢查間隔(沒設 = 宿主預設 5 秒)。The parent watchdog interval; unset = the host default.</summary>
+    public TimeSpan? ParentCheckInterval { get; private init; }
+
+    /// <summary>結束保險的寬限(沒設 = 宿主預設 15 秒)。The exit guard's grace; unset = the host default.</summary>
+    public TimeSpan? ExitGrace { get; private init; }
+
+    public TimeSpan DomesticReadyTimeout { get; private init; } = TimeSpan.FromSeconds(60);
+
+    public TimeSpan DomesticKLineTimeout { get; private init; } = TimeSpan.FromSeconds(60);
+
     public static FakeSettings FromEnvironment() => new()
     {
+        ParentCheckInterval = Millis("PARENT_CHECK_MS"),
+        ExitGrace = Millis("EXIT_GRACE_MS"),
+        TwOpenHResult = HResult("TW_OPEN_HRESULT"),
+        TwEnterCode = Int("TW_ENTER_CODE") ?? 0,
+        TwNoReady = Text("TW_NO_READY") == "1",
+        TwReadyDelay = Millis("TW_READY_DELAY_MS") ?? TimeSpan.FromMilliseconds(500),
+        TwDisconnectAfter = Millis("TW_DISCONNECT_AFTER_MS"),
+        TwKLineLimit = Int("TW_KLINE_LIMIT") ?? 60_000,
+        TwNoComplete = Text("TW_NO_COMPLETE") == "1",
+        DomesticReadyTimeout = Millis("TW_READY_TIMEOUT_MS") ?? TimeSpan.FromSeconds(60),
+        DomesticKLineTimeout = Millis("TW_KLINE_TIMEOUT_MS") ?? TimeSpan.FromSeconds(60),
         LoginCode = Int("LOGIN_CODE") ?? 0,
         ExpectedId = Text("EXPECT_ID"),
         ExpectedPassword = Text("EXPECT_PASSWORD"),

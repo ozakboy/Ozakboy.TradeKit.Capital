@@ -16,11 +16,13 @@ if (args.Length > 0 && args[0] == "serve")
 
 Console.OutputEncoding = Encoding.UTF8;
 
-if (args.Length == 0 || args[0] != "probe")
+if (args.Length == 0 || (args[0] != "probe" && args[0] != "probe-tw"))
 {
-    Console.WriteLine("用法:Ozakboy.TradeKit.Capital.Host serve | probe --out <輸出目錄> [--seconds 120] [--kline-days 3] [--symbol 交易所,代碼]...");
+    Console.WriteLine("用法:Ozakboy.TradeKit.Capital.Host serve | probe --out <輸出目錄> [--seconds 120] [--kline-days 3] [--symbol 交易所,代碼]... | probe-tw --out <輸出目錄>");
     return 2;
 }
+
+bool domestic = args[0] == "probe-tw";
 
 ProbeOptions? options = ProbeOptions.Parse(args.Skip(1).ToArray(), out string error);
 
@@ -30,7 +32,9 @@ if (options is null)
     return 2;
 }
 
-Console.WriteLine("群益海外報價探針:只讀行情、不下單。帳號密碼只在記憶體使用,不寫進任何檔案。");
+Console.WriteLine(domestic
+    ? "群益國內報價探針(歷史 K 線):只讀行情、不下單。帳號密碼只在記憶體使用,不寫進任何檔案。請先關掉 TideTrade,避免同一個帳號同時登入。"
+    : "群益海外報價探針:只讀行情、不下單。帳號密碼只在記憶體使用,不寫進任何檔案。");
 string userId = ConsoleSecret.Read("身分證字號:").ToUpperInvariant();
 string password = ConsoleSecret.Read("登入密碼:");
 
@@ -42,5 +46,11 @@ if (userId.Length == 0 || password.Length == 0)
 
 using ProbeLog log = new(options.OutputDirectory);
 using StaComThread sta = new();
+if (domestic)
+{
+    DomesticProbeRunner domesticRunner = new(options, log);
+    return await sta.InvokeAsync(() => domesticRunner.RunAsync(userId, password)).ConfigureAwait(false);
+}
+
 ProbeRunner runner = new(options, log);
 return await sta.InvokeAsync(() => runner.RunAsync(userId, password)).ConfigureAwait(false);

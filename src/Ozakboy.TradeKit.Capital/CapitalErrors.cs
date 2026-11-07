@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Json;
+using Ozakboy.TradeKit.Capital.Protocol;
 
 namespace Ozakboy.TradeKit.Capital;
 
@@ -158,12 +160,12 @@ internal static class CapitalErrors
     /// 宿主回應的錯誤:代碼照用(協定上就是 capital.*),群益代碼轉進 <see cref="CapitalErrorDataKeys.Code"/>。
     /// An error the host answered with: its code is used as is and Capital's code goes into Data["code"].
     /// </summary>
-    public static Error FromHost(string method, string code, string message, int? skCode, string? skMessage, string? symbol)
+    public static Error FromHost(string method, string code, string message, JsonElement data)
     {
         ErrorCategory category = code switch
         {
-            CapitalErrorCodes.ProductsTimeout => ErrorCategory.Timeout,
-            CapitalErrorCodes.NotConnected => ErrorCategory.Unavailable,
+            CapitalErrorCodes.ProductsTimeout or CapitalErrorCodes.KLineTimeout => ErrorCategory.Timeout,
+            CapitalErrorCodes.NotConnected or CapitalErrorCodes.DomesticUnavailable => ErrorCategory.Unavailable,
             CapitalErrorCodes.RequestInvalid or CapitalErrorCodes.UnknownMethod => ErrorCategory.Unexpected,
             CapitalErrorCodes.KLineRejected or CapitalErrorCodes.SubscribeRejected or CapitalErrorCodes.ProductsRejected => ErrorCategory.Validation,
             _ => ErrorCategory.Unexpected,
@@ -171,21 +173,33 @@ internal static class CapitalErrors
 
         Error error = new Error(code, message, category).WithData(CapitalErrorDataKeys.Method, method);
 
-        if (skCode is { } value)
+        if (CapitalWire.GetInt32(data, "skCode") is { } value)
         {
             error = error.WithData(CapitalErrorDataKeys.Code, value);
         }
 
-        if (!string.IsNullOrEmpty(skMessage))
+        foreach ((string wire, string key) in DataFields)
         {
-            error = error.WithData(CapitalErrorDataKeys.Message, skMessage);
+            if (CapitalWire.GetString(data, wire) is { Length: > 0 } text)
+            {
+                error = error.WithData(key, text);
+            }
         }
 
-        if (!string.IsNullOrEmpty(symbol))
+        if (CapitalWire.GetInt32(data, "received") is { } received)
         {
-            error = error.WithData(CapitalErrorDataKeys.Symbol, symbol);
+            error = error.WithData("received", received);
         }
 
         return error;
     }
+
+    // 宿主錯誤 data 的字串欄位 → Error.Data 的鍵。String members of the host's error data and their Error.Data keys.
+    private static readonly (string Wire, string Key)[] DataFields =
+    [
+        ("skMessage", CapitalErrorDataKeys.Message),
+        ("symbol", CapitalErrorDataKeys.Symbol),
+        ("reason", CapitalErrorDataKeys.Reason),
+        ("domestic", CapitalErrorDataKeys.DomesticState),
+    ];
 }

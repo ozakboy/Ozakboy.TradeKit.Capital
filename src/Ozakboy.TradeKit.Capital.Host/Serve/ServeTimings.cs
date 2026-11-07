@@ -21,7 +21,20 @@ internal sealed class ServeTimings
     /// <summary>K 線靜默偵測的輪詢間隔。The polling interval of the K-line quiet detection.</summary>
     public TimeSpan KLinePoll { get; init; } = TimeSpan.FromMilliseconds(100);
 
-    /// <summary>3002 之後重新 EnterMonitorLONG 的退避(5、10、30、60 秒,之後一律 60 秒)。The reconnect backoff.</summary>
+    /// <summary>
+    /// 國內 EnterMonitorLONG 後等 3003 的上限(60 秒;實測約 0.5 秒)。首次逾時 → 國內不可用;重連時逾時 → 稍後再試。
+    /// How long to wait for the domestic 3003 after EnterMonitorLONG (measured about 0.5 s). A first-time timeout makes
+    /// the domestic side unavailable; a timeout while reconnecting retries later.
+    /// </summary>
+    public TimeSpan DomesticReadyTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>國內 K 線等 OnKLineComplete 的上限(60 秒)。How long a domestic K-line request waits for OnKLineComplete.</summary>
+    public TimeSpan DomesticKLineTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// 3002 之後重新 EnterMonitorLONG 的退避(5、10、30、60 秒,之後一律 60 秒);海外與國內各自計次、共用這份清單。
+    /// The reconnect backoff; the overseas and the domestic side count their attempts separately and share this list.
+    /// </summary>
     public IReadOnlyList<TimeSpan> ReconnectDelays { get; init; } =
         [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)];
 

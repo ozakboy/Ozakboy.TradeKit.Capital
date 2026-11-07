@@ -37,6 +37,7 @@ public sealed partial class CapitalHostSession
         }
 
         CapitalHostProcess host = started.GetValueOrThrow();
+        JoinHostJob(host);
 
         lock (_stateLock)
         {
@@ -72,6 +73,45 @@ public sealed partial class CapitalHostSession
         }
 
         return outcome;
+    }
+
+    /// <summary>
+    /// 把宿主放進工作階段的 Job Object(Windows;第一次用到時建立,持有到 <see cref="DisposeAsync"/>)。失敗只記警告:
+    /// 宿主另有 stdin EOF 與父行程看門狗兩道保險。
+    /// Puts the host into the session's Job Object (Windows; created on first use and held until DisposeAsync). A
+    /// failure is only a warning: the host also ends on stdin EOF and watches its parent.
+    /// </summary>
+    private void JoinHostJob(CapitalHostProcess host)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        CapitalHostJob? job;
+        string problem = string.Empty;
+
+        lock (_stateLock)
+        {
+            if (_job is null && !_jobFailed)
+            {
+                _job = CapitalHostJob.TryCreate(out problem);
+                _jobFailed = _job is null;
+            }
+
+            job = _job;
+        }
+
+        if (job is null)
+        {
+            WarnOnce("job:create", () => CapitalHostLog.JobUnavailable(_logger, problem));
+            return;
+        }
+
+        if (!host.TryJoin(job, out problem))
+        {
+            CapitalHostLog.JobUnavailable(_logger, problem);
+        }
     }
 
     private void StartSupervisor()
@@ -146,6 +186,9 @@ public sealed partial class CapitalHostSession
 
                 await current.DisposeAsync().ConfigureAwait(false);
                 current = null;
+
+                // 行程沒了,國內也跟著沒了;新的宿主就緒後會重新回報。The process is gone and so is the domestic side.
+                SetDomesticState(CapitalDomesticState.NotStarted, null, null);
 
                 if (_time.GetElapsedTime(readyAt) >= _options.StableAfter)
                 {
@@ -278,6 +321,9 @@ public sealed partial class CapitalHostSession
                 SetState(CapitalHostState.Ready);
                 break;
         }
+
+        // 國內欄位與海外狀態各自獨立;state 只代表海外。The domestic fields are independent; state is overseas only.
+        ApplyDomesticStatus(status);
     }
 
     private void OnMarketEvent(string name, JsonElement data)

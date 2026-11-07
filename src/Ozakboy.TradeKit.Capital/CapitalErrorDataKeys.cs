@@ -29,4 +29,10 @@ public static class CapitalErrorDataKeys
 
     /// <summary>請求的 method。The request's method.</summary>
     public const string Method = "method";
+
+    /// <summary>
+    /// 國內報價當時的狀態(協定字串 <c>connecting</c> / <c>ready</c> / <c>disconnected</c> / <c>unavailable</c>)。
+    /// The domestic quote state at the time, as its wire string.
+    /// </summary>
+    public const string DomesticState = "domestic";
 }

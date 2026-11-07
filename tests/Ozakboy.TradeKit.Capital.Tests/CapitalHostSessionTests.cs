@@ -9,7 +9,7 @@ namespace Ozakboy.TradeKit.Capital.Tests;
 /// Drives <see cref="CapitalHostSession"/> against the fake host: the real host's protocol layer with a simulated SKCOM.
 /// </summary>
 [TestClass]
-public sealed class CapitalHostSessionTests
+public sealed partial class CapitalHostSessionTests
 {
     private static readonly CapitalSymbol UsdJpy = new("FX", "SUSDJPY");
     private static readonly CapitalSymbol Nq = new("CME", "NQ0000");
@@ -367,6 +367,7 @@ public sealed class CapitalHostSessionTests
             Logger = logger;
             CallLogPath = callLog;
             Session.StateChanged += (_, e) => _states.Enqueue(e.Current);
+            Session.DomesticStateChanged += (_, e) => DomesticChanges.Enqueue(e);
         }
 
         public CapitalHostOptions Options { get; }
@@ -374,6 +375,9 @@ public sealed class CapitalHostSessionTests
         public CapitalHostSession Session { get; }
 
         public CapturingLogger<CapitalHostSession> Logger { get; }
+
+        /// <summary>國內狀態的變化(含原因與代碼)。The domestic state changes, with reason and code.</summary>
+        public ConcurrentQueue<CapitalDomesticStateChangedEventArgs> DomesticChanges { get; } = new();
 
         public string CallLogPath { get; }
 

@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Ozakboy.TradeKit.Capital.Host.Serve;
 
-// stdin 請求:products / subscribe / kline / status / shutdown。依序處理,一次一個。
+// stdin 請求:products / subscribe / kline / kline-tw / status / shutdown。依序處理,一次一個(kline-tw 見 ServeHost.Domestic.cs)。
 // stdin requests, handled one at a time.
 internal sealed partial class ServeHost
 {
@@ -32,10 +32,14 @@ internal sealed partial class ServeHost
             case "kline":
                 await HandleKLineAsync(requestId, parameters).ConfigureAwait(true);
                 return false;
+            case "kline-tw":
+                await HandleDomesticKLineAsync(requestId, line, parameters).ConfigureAwait(true);
+                return false;
             case "status":
                 HandleStatus(requestId);
                 return false;
             case "shutdown":
+                LeaveDomestic();
                 LogCode("LeaveMonitor", _source.LeaveMonitor());
                 _out.WriteResult(requestId, _ => { });
                 _log.Write("收到 shutdown,結束。");
@@ -530,6 +534,8 @@ internal sealed partial class ServeHost
             {
                 writer.WriteNumber("skCode", code);
             }
+
+            WriteDomesticFields(writer);
         });
     }
 

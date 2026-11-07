@@ -10,9 +10,12 @@ namespace Ozakboy.TradeKit.Capital.Host.Interop;
 /// </summary>
 /// <remarks>
 /// 呼叫順序照探針實測可行的那一套(<c>ProbeRunner</c>):建立物件 → SetLogPath → 掛 OnReplyMessage 與海外事件 → Login →
-/// EnterMonitorLONG → 等 OnConnect(3001) → 商品 / 訂閱 / K 線。
+/// EnterMonitorLONG → 等 OnConnect(3001) → 商品 / 訂閱 / K 線。國內報價(SKQuoteLib)的物件同樣在登入前建立並掛事件
+/// (<c>DomesticProbeRunner</c> 實測的順序),海外就緒後才 EnterMonitorLONG(2026-11-07 實測兩邊同時掛正常)。
 /// The call order follows the one the probe measured to work: create the objects, SetLogPath, attach OnReplyMessage and
-/// the overseas events, Login, EnterMonitorLONG, wait for OnConnect(3001), then products, subscriptions and K-lines.
+/// the overseas events, Login, EnterMonitorLONG, wait for OnConnect(3001), then products, subscriptions and K-lines. The
+/// domestic quote object is likewise created and hooked before login, and enters its monitor once the overseas side is
+/// ready (measured 2026-11-07: both connected at once work).
 /// </remarks>
 internal sealed class SkComQuoteSource : ISkQuoteSource
 {
@@ -21,6 +24,8 @@ internal sealed class SkComQuoteSource : ISkQuoteSource
 
     private ISKCenterLib? _center;
     private ISKOSQuoteLib? _quote;
+    private ISKQuoteLib? _domestic;
+    private ComEventConnection? _domesticConnection;
 
     // SKReplyLib 只用來掛公告事件(登入前必要),本身不呼叫任何方法;仍要留著參考,免得它的 RCW 被 GC 回收、事件跟著失效。
     // SKReplyLib is only there for the announcement event; it is kept referenced so its RCW is never collected.
@@ -49,6 +54,17 @@ internal sealed class SkComQuoteSource : ISkQuoteSource
 
     /// <inheritdoc/>
     public event Action<SkTickData>? Tick;
+
+    /// <inheritdoc/>
+    public event Action<int>? DomesticConnection;
+
+    /// <inheritdoc/>
+    public event Action<string, string>? DomesticKLine;
+
+    /// <inheritdoc/>
+    public event Action<string>? DomesticKLineComplete;
+
+    private ISKQuoteLib Domestic => _domestic ?? throw new InvalidOperationException("國內報價物件尚未建立,先呼叫 OpenDomestic。");
 
     private ISKCenterLib Center => _center ?? throw new InvalidOperationException("SKCOM 尚未建立,先呼叫 Open。");
 
@@ -187,6 +203,45 @@ internal sealed class SkComQuoteSource : ISkQuoteSource
     }
 
     /// <inheritdoc/>
+    public SkOpenFailure? OpenDomestic()
+    {
+        try
+        {
+            _domestic = (ISKQuoteLib)Create(SkComDomesticIds.QuoteLibClsid);
+        }
+        catch (Exception exception) when (exception is COMException or IOException or InvalidCastException or TypeLoadException)
+        {
+            string reason = exception.HResult switch
+            {
+                HResultClassNotRegistered => ServeStates.ReasonNotRegistered,
+                HResultModuleNotFound => ServeStates.ReasonFileMissing,
+                _ => ServeStates.ReasonCreateFailed,
+            };
+            return new SkOpenFailure(reason, exception.HResult);
+        }
+
+        // OnConnection 的 nKind 是 3001 / 3002 / 3003(探針實測;nCode 是附帶的錯誤代碼,這裡用不到)。
+        // nKind carries 3001, 3002 and 3003 as the probe measured; nCode is an accompanying error code, unused here.
+        QuoteEventsSink sink = new();
+        sink.Connection += (kind, _) => DomesticConnection?.Invoke(kind);
+        sink.KLine += (stockNo, data) => DomesticKLine?.Invoke(stockNo, data);
+        sink.KLineComplete += end => DomesticKLineComplete?.Invoke(end);
+        _domesticConnection = ComEventConnection.Advise(_domestic, SkComDomesticIds.QuoteLibEventsIid, sink);
+
+        return null;
+    }
+
+    /// <inheritdoc/>
+    public int EnterDomesticMonitor() => Domestic.SKQuoteLib_EnterMonitorLONG();
+
+    /// <inheritdoc/>
+    public int LeaveDomesticMonitor() => _domestic is null ? 0 : _domestic.SKQuoteLib_LeaveMonitor();
+
+    /// <inheritdoc/>
+    public int RequestDomesticKLine(string stockNo, short kLineType, short outType, short tradeSession, string startDate, string endDate, short minuteNumber) =>
+        Domestic.SKQuoteLib_RequestKLineAMByDate(stockNo, kLineType, outType, tradeSession, startDate, endDate, minuteNumber);
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         if (_disposed)
@@ -195,6 +250,7 @@ internal sealed class SkComQuoteSource : ISkQuoteSource
         }
 
         _disposed = true;
+        _domesticConnection?.Dispose();
         _quoteConnection?.Dispose();
         _replyConnection?.Dispose();
     }

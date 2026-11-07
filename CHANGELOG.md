@@ -8,6 +8,58 @@ All notable changes to this package are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-07
+
+**國內期貨歷史 K 線(台指 / 小台 / 微台近月),以及宿主不再留下孤兒行程。**
+**Domestic futures historical K-lines (TAIEX, mini and micro TAIEX futures, near month), and no more orphaned hosts.**
+
+### 新增功能 / Added
+
+- **`CapitalHostSession.GetDomesticKLinesAsync`**(`SKQuoteLib_RequestKLineAMByDate`):`TX00` / `MTX00` / `TM0000`,
+  1 分 K 與日 K(`CapitalDomesticKLineType`)、全盤或 AM 盤(`CapitalTradeSession`),起訖是交易日(全盤含前一晚夜盤)。
+  `CapitalDomesticBar` 的分 K `OpenTimeUtc` = 台北時間的結束時刻 − 1 分鐘轉 UTC,日 K 只有 `TradingDay`;價格以 `decimal` 原樣讀入;
+  量為 0 的空 K 棒照原樣回;讀不懂的行記數略過並記一筆警告。需要群益期貨戶,本套件只承諾期貨。
+  **`GetDomesticKLinesAsync`** for TX00, MTX00 and TM0000: minute and daily bars, full or AM session, trading-day dates.
+  Minute bars open at the Taipei end time minus one minute, in UTC; prices are read as decimal unchanged; empty bars are
+  kept; unreadable rows are counted, skipped and logged once. A Capital futures account is required; only futures are
+  supported.
+- **國內狀態**:`DomesticState`、`DomesticReason`、`DomesticStateChanged`(`CapitalDomesticState`、`CapitalDomesticReasons`),
+  與海外的 `State` / `StateChanged` 分開。國內在海外就緒後才連,`EnterMonitorLONG` 被拒或 60 秒內沒有 3003 → 不可用(不重試),
+  **海外照常 ready、結束碼不受影響**;國內 3002 以 5、10、30、60 秒退避重連。`CapitalConnectionStatus` 加 `Domestic`、`DomesticReason`。
+  **A domestic state** separate from the overseas one. The domestic side connects after the overseas side is ready;
+  a rejected EnterMonitorLONG or no 3003 within 60 seconds makes it unavailable without affecting the overseas side or
+  the exit code; a domestic 3002 is reconnected with backoff.
+- **宿主協定**:新 method `kline-tw`(`{code, type: 0|4, session: 0|1, start, end}` → `{lines}`,以 `OnKLineComplete` 結束);
+  `status` 事件與 `status` 回應加 `domestic` / `domesticReason` / `domesticCode`;新錯誤碼 `capital.kline.timeout`、
+  `capital.domestic.unavailable`。0.1.x 用戶端可以照常接 0.2.0 宿主(新欄位會被忽略)。
+  **Host protocol**: the kline-tw method, domestic fields on the status event and response, and two new error codes.
+  A 0.1.x client still works with the 0.2.0 host.
+
+### 問題修正 / Fixed
+
+- **父行程結束後宿主還一直跑(可能還掛著群益登入)**:用戶端把宿主放進 Windows Job Object(`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`,
+  handle 由工作階段持有到 `DisposeAsync`),父行程不論正常結束或被強制結束,系統都會收掉宿主;宿主另外看守用戶端以 `CAPITAL_PARENT_PID`
+  傳入的父行程(每 5 秒),不在了就與 stdin EOF 一樣 LeaveMonitor(海外與國內)後以 0 結束;決定結束後 15 秒仍未結束就強制結束。
+  **A host kept running after its parent ended**, possibly still logged in. The client now puts the host in a
+  KILL_ON_JOB_CLOSE Job Object held until DisposeAsync, the host also watches its parent PID every 5 seconds and ends
+  like on stdin EOF once it is gone, and a shutdown that has not finished within 15 seconds is forced.
+
+### 已知問題 / Known issues
+
+- **全盤的收盤是結算價**:全盤分 K 的日盤最後一根(13:45;結算日 13:30)與全盤日 K 的收盤是期交所的結算價,AM 盤日 K 的收盤才是最後成交價
+  (2026-11-06 台指:最後成交 39786、結算 39652)。套件回原始資料、不修正。
+  **Full-session closes are settlement prices**; only the AM-session daily close is the last traded price. Returned
+  unchanged.
+- **群益資料錯誤**:2026-10-30 週五夜盤(歸屬 11/02)群益分 K 與日 K 的量是期交所官方的 2 倍(官方 44,305 口、群益 88,442),其他夜盤正常。
+  套件不處理。
+  **A Capital data error**: the volume of the 2026-10-30 night session is twice TAIFEX's figure. Not handled.
+- 一個請求最多 60,000 筆,超過時群益保留最新、截掉最舊且不報錯;1 分 K 約只保留最近 1 年。
+  One request holds at most 60,000 rows, the oldest dropped silently beyond that; minute bars go back about a year.
+- 國內的 `serve` 流程(連線狀態機、`kline-tw`、國內 3002 重連)與 Job Object、父行程看門狗都只對假宿主測過;國內的 SKCOM 呼叫與格式是
+  2026-11-07 以 `probe-tw` 實測的。
+  The domestic serve flow, the Job Object and the parent watchdog are tested against the fake host only; the domestic
+  SKCOM calls and formats were measured with probe-tw on 2026-11-07.
+
 ## [0.1.0] - 2026-11-06
 
 **第一版:群益 SKCOM 海外報價(外匯 + 海期),只接報價。**

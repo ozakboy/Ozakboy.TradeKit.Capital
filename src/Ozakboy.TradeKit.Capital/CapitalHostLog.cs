@@ -67,6 +67,40 @@ internal static class CapitalHostLog
             new EventId(4010, "CapitalStateHandlerFailed"),
             "StateChanged 的處理常式擲出例外 / a StateChanged handler threw。");
 
+    private static readonly Action<ILogger, string, int, int, Exception?> DomesticKLineSkippedCore =
+        LoggerMessage.Define<string, int, int>(
+            LogLevel.Warning,
+            new EventId(4011, "CapitalDomesticKLineSkipped"),
+            "國內 K 線 {Code} 有 {Skipped} 行讀不懂,已略過(其餘 {Kept} 根照回)/ unreadable domestic K-line rows were skipped, the rest returned。");
+
+    private static readonly Action<ILogger, CapitalDomesticState, CapitalDomesticState, string, Exception?> DomesticStateChangedCore =
+        LoggerMessage.Define<CapitalDomesticState, CapitalDomesticState, string>(
+            LogLevel.Information,
+            new EventId(4012, "CapitalDomesticStateChanged"),
+            "群益國內報價狀態 / Capital domestic quote state: {Previous} → {Current}({Reason})");
+
+    private static readonly Action<ILogger, Exception?> DomesticStateHandlerFailedCore =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(4013, "CapitalDomesticStateHandlerFailed"),
+            "DomesticStateChanged 的處理常式擲出例外 / a DomesticStateChanged handler threw。");
+
+    private static readonly Action<ILogger, string, Exception?> JobUnavailableCore =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(4014, "CapitalHostJobUnavailable"),
+            "宿主沒有放進 Job Object,父行程被強制結束時改靠宿主自己的 stdin EOF 與父行程看門狗結束 / the host is not in a Job Object; it relies on its own stdin EOF and parent watchdog:{Problem}");
+
+    public static void JobUnavailable(ILogger logger, string problem) => JobUnavailableCore(logger, problem, null);
+
+    public static void DomesticKLineSkipped(ILogger logger, string code, int skipped, int kept) =>
+        DomesticKLineSkippedCore(logger, code, skipped, kept, null);
+
+    public static void DomesticStateChanged(ILogger logger, CapitalDomesticState previous, CapitalDomesticState current, string? reason) =>
+        DomesticStateChangedCore(logger, previous, current, reason ?? "-", null);
+
+    public static void DomesticStateHandlerFailed(ILogger logger, Exception exception) => DomesticStateHandlerFailedCore(logger, exception);
+
     public static void HostOutput(ILogger logger, string line) => HostOutputCore(logger, line, null);
 
     public static void StateChanged(ILogger logger, CapitalHostState previous, CapitalHostState current) =>

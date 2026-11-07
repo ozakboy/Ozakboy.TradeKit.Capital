@@ -22,7 +22,31 @@ internal static class CapitalWire
             GetString(data, "reason"),
             GetString(data, "hresult"),
             GetInt32(data, "code"),
-            GetString(data, "message"));
+            GetString(data, "message"),
+            GetString(data, "domestic"),
+            GetString(data, "domesticReason"),
+            GetInt32(data, "domesticCode"));
+
+    /// <summary>
+    /// 國內狀態的協定字串 → <see cref="CapitalDomesticState"/>;不認得的字串回 <see langword="false"/>。
+    /// Maps the domestic state's wire string; an unknown string answers false.
+    /// </summary>
+    /// <param name="wire">協定字串。The wire string.</param>
+    /// <param name="state">狀態。The state.</param>
+    /// <returns>認得時為 <see langword="true"/>。True when known.</returns>
+    public static bool TryParseDomesticState(string? wire, out CapitalDomesticState state)
+    {
+        (bool known, state) = wire switch
+        {
+            "connecting" => (true, CapitalDomesticState.Connecting),
+            "ready" => (true, CapitalDomesticState.Ready),
+            "disconnected" => (true, CapitalDomesticState.Disconnected),
+            "unavailable" => (true, CapitalDomesticState.Unavailable),
+            _ => (false, CapitalDomesticState.NotStarted),
+        };
+
+        return known;
+    }
 
     /// <summary>
     /// 解析 quote 事件:價格原始整數 ÷ 10^decimals。

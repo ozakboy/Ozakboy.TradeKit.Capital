@@ -22,6 +22,8 @@ ServeTimings timings = new()
     KLineNoData = settings.KLineNoData,
     KLinePoll = TimeSpan.FromMilliseconds(20),
     ReconnectDelays = settings.ReconnectDelays,
+    DomesticReadyTimeout = settings.DomesticReadyTimeout,
+    DomesticKLineTimeout = settings.DomesticKLineTimeout,
 };
 
 using FakeSkQuoteSource source = new(settings);
@@ -29,6 +31,21 @@ using Stream stdin = Console.OpenStandardInput();
 using Stream stdout = Console.OpenStandardOutput();
 using Stream stderr = Console.OpenStandardError();
 
-int exitCode = await ServeBootstrap.RunAsync(source, work => work(), timings, stdin, stdout, stderr).ConfigureAwait(false);
+int exitCode = await ServeBootstrap.RunAsync(
+        source,
+        work => work(),
+        timings,
+        stdin,
+        stdout,
+        stderr,
+        settings.ParentCheckInterval,
+        settings.ExitGrace,
+        code =>
+        {
+            // 強制結束也記一筆,測試看得出走的是哪條路。A forced exit is recorded too, so tests can tell which path ran.
+            settings.Record(string.Create(CultureInfo.InvariantCulture, $"forced_exit {code}"));
+            Environment.Exit(code);
+        })
+    .ConfigureAwait(false);
 settings.Record(string.Create(CultureInfo.InvariantCulture, $"exit {exitCode}"));
 return exitCode;

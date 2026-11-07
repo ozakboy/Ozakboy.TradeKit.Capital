@@ -14,4 +14,13 @@ public sealed record CapitalConnectionStatus
 
     /// <summary>是否超過連線上限。Whether over the connection limit.</summary>
     public required bool OutLimit { get; init; }
+
+    /// <summary>
+    /// 國內報價的狀態(0.2.0 起;0.1.x 的宿主沒有這個欄位時為 <see cref="CapitalDomesticState.NotStarted"/>)。
+    /// The domestic quote state (since 0.2.0; NotStarted when an older host does not report it).
+    /// </summary>
+    public CapitalDomesticState Domestic { get; init; }
+
+    /// <summary>國內不可用或斷線的原因(<see cref="CapitalDomesticReasons"/>)。Why the domestic side is unavailable or disconnected.</summary>
+    public string? DomesticReason { get; init; }
 }

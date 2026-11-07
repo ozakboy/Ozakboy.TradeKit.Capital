@@ -13,6 +13,8 @@ namespace FakeCapitalHostExe;
 /// <item>K 線沒有結束事件(實測),格式 <c>yyyy/MM/dd HH:mm, O, H, L, C, V</c>、時間是那一分鐘的結束;另外先送一筆別的代碼的行,
 /// 驗證宿主只收這次要的代碼。</item>
 /// <item>時間是交易所當地時間:FX、NYM 美東,CME、CBOT 芝加哥(實測)。</item>
+/// <item>國內報價(2026-11-07 實測):EnterMonitorLONG 回 0 → 3001 → 約 0.5 秒後 3003;K 線以 OnKLineComplete("##") 結束,
+/// 資料規則見 <see cref="FakeDomesticMarket"/>。可設成建不起物件、EnterMonitorLONG 被拒、永遠不送 3003、斷線一次、不送結束事件。</item>
 /// </list>
 /// Simulates SKCOM by the measured behaviour: only 3001 after EnterMonitorLONG, asynchronous events, products ending
 /// with "##", ticks replayed before live ones with increasing nPtr and arriving before quotes, K-lines without an end
@@ -23,6 +25,7 @@ internal sealed class FakeSkQuoteSource : ISkQuoteSource
     private const int CodeConnected = 3001;
     private const int CodeDisconnected = 3002;
     private const int CodeRejected = 1012;
+    private const int CodeDomesticReady = 3003;
 
     private readonly FakeSettings _settings;
     private readonly ConcurrentDictionary<int, FakeInstrument> _byIndex = new();
@@ -38,6 +41,8 @@ internal sealed class FakeSkQuoteSource : ISkQuoteSource
     private int _stocksCalls;
     private bool _disconnectedOnce;
     private volatile bool _connected;
+    private int _twEnterCount;
+    private bool _twDisconnectedOnce;
 
     public FakeSkQuoteSource(FakeSettings settings)
     {
@@ -64,6 +69,12 @@ internal sealed class FakeSkQuoteSource : ISkQuoteSource
     public event Action<int>? Quote;
 
     public event Action<SkTickData>? Tick;
+
+    public event Action<int>? DomesticConnection;
+
+    public event Action<string, string>? DomesticKLine;
+
+    public event Action<string>? DomesticKLineComplete;
 
     public SkOpenFailure? Open()
     {
@@ -304,6 +315,95 @@ internal sealed class FakeSkQuoteSource : ISkQuoteSource
             TradingDay = 20261106,
             Close = close,
         };
+
+        return 0;
+    }
+
+    // ── 國內報價:依 2026-11-07 probe-tw 實測(見 FakeDomesticMarket)。Domestic quotes, by the 2026-11-07 measurements. ──
+
+    public SkOpenFailure? OpenDomestic()
+    {
+        _settings.Record("tw_open");
+
+        return _settings.TwOpenHResult is { } hresult
+            ? new SkOpenFailure(hresult == unchecked((int)0x80040154) ? ServeStates.ReasonNotRegistered : ServeStates.ReasonCreateFailed, hresult)
+            : null;
+    }
+
+    public int EnterDomesticMonitor()
+    {
+        int count = Interlocked.Increment(ref _twEnterCount);
+        _settings.Record(string.Create(CultureInfo.InvariantCulture, $"tw_enter {count}"));
+
+        if (_settings.TwEnterCode != 0)
+        {
+            return _settings.TwEnterCode;
+        }
+
+        // 實測:回 0 → OnConnection(3001) → 約 0.5 秒後 3003(商品基本資料完成)。Measured: 3001, then 3003 about 0.5 s later.
+        Schedule(TimeSpan.FromMilliseconds(50), () => DomesticConnection?.Invoke(CodeConnected));
+
+        if (_settings.TwNoReady)
+        {
+            return 0;
+        }
+
+        Schedule(TimeSpan.FromMilliseconds(50) + _settings.TwReadyDelay, () =>
+        {
+            DomesticConnection?.Invoke(CodeDomesticReady);
+
+            if (_settings.TwDisconnectAfter is { } after && !_twDisconnectedOnce)
+            {
+                _twDisconnectedOnce = true;
+                Schedule(after, () =>
+                {
+                    _settings.Record("tw_disconnect");
+                    DomesticConnection?.Invoke(CodeDisconnected);
+                });
+            }
+        });
+
+        return 0;
+    }
+
+    public int LeaveDomesticMonitor()
+    {
+        _settings.Record("tw_leave");
+        return 0;
+    }
+
+    public int RequestDomesticKLine(string stockNo, short kLineType, short outType, short tradeSession, string startDate, string endDate, short minuteNumber)
+    {
+        _settings.Record(string.Create(CultureInfo.InvariantCulture, $"tw_kline {stockNo} {kLineType} {outType} {tradeSession} {startDate} {endDate} {minuteNumber}"));
+
+        // 代碼不存在或沒權限立即回非 0,不送任何事件(實測)。An unknown code answers non-zero at once with no events.
+        int code = FakeDomesticMarket.Check(stockNo);
+
+        if (code != 0)
+        {
+            return code;
+        }
+
+        List<string> rows = FakeDomesticMarket.Rows(stockNo, kLineType, tradeSession, startDate, endDate, _settings.TwKLineLimit);
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(20).ConfigureAwait(false);
+
+            // 別的代碼的一行(OnNotifyKLineData 帶代碼,宿主必須只收這次要的)。A stray row for another code that the host drops.
+            DomesticKLine?.Invoke(stockNo == "MTX00" ? "TX00" : "MTX00", "2026/11/06 13:45, 1.00, 1.00, 1.00, 1.00, 1");
+
+            foreach (string row in rows)
+            {
+                DomesticKLine?.Invoke(stockNo, row);
+            }
+
+            // 實測:每個請求結束一定有一則 OnKLineComplete("##"),0 筆時也有。Measured: one completion per request, even with no rows.
+            if (!_settings.TwNoComplete)
+            {
+                DomesticKLineComplete?.Invoke("##");
+            }
+        });
 
         return 0;
     }

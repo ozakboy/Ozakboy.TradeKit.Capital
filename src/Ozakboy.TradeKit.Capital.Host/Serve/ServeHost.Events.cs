@@ -26,6 +26,13 @@ internal sealed partial class ServeHost
         _source.KLine += OnKLine;
         _source.Quote += OnQuote;
         _source.Tick += OnTick;
+        _source.DomesticConnection += code =>
+        {
+            _log.Write(string.Create(CultureInfo.InvariantCulture, $"國內 OnConnection({code})"));
+            _ = _inbox.Writer.TryWrite(new DomesticConnectItem(code));
+        };
+        _source.DomesticKLine += OnDomesticKLine;
+        _source.DomesticKLineComplete += OnDomesticKLineComplete;
     }
 
     private void CollectRow(ref RowCollector? field, string row)

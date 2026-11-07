@@ -11,8 +11,10 @@ namespace Ozakboy.TradeKit.Capital;
 
 /// <summary>
 /// 群益 SKCOM 海外報價的工作階段:啟動並監督宿主子行程(<c>Ozakboy.TradeKit.Capital.Host serve</c>)、送請求、讀報價與成交。
+/// 0.2.0 起另可查國內期貨歷史 K 線(<see cref="GetDomesticKLinesAsync"/>),國內狀態獨立於海外(<see cref="DomesticState"/>)。
 /// A Capital SKCOM overseas quote session: starts and supervises the host child process, sends requests, and reads
-/// quotes and ticks.
+/// quotes and ticks. Since 0.2.0 it also fetches domestic futures historical K-lines, with a domestic state kept
+/// separate from the overseas one.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -60,6 +62,11 @@ public sealed partial class CapitalHostSession : IAsyncDisposable
     private Task? _supervisorTask;
     private long _droppedEvents;
     private bool _disposed;
+
+    // 宿主行程的 Job Object(Windows,KILL_ON_JOB_CLOSE):持有到 DisposeAsync,父行程消失時系統會把宿主一起收掉。
+    // The hosts' Job Object (Windows, kill on close), held until DisposeAsync so the system ends the host with the parent.
+    private CapitalHostJob? _job;
+    private bool _jobFailed;
 
     /// <summary>
     /// 建立工作階段(不啟動任何行程)。
@@ -276,6 +283,7 @@ public sealed partial class CapitalHostSession : IAsyncDisposable
             }
 
             _credentials = null;
+            SetDomesticState(CapitalDomesticState.NotStarted, null, null);
             SetState(CapitalHostState.Stopped);
             return Result.Success();
         }
@@ -301,6 +309,52 @@ public sealed partial class CapitalHostSession : IAsyncDisposable
         _ = await StopAsync(CancellationToken.None).ConfigureAwait(false);
         _ = _events.Writer.TryComplete();
         _gate.Dispose();
+
+        CapitalHostJob? job;
+
+        lock (_stateLock)
+        {
+            job = _job;
+            _job = null;
+        }
+
+        // 關掉 job handle:萬一還有宿主沒結束,系統會收掉它。Closing the job ends any host still running.
+        if (job is not null && OperatingSystem.IsWindows())
+        {
+            job.Dispose();
+        }
+    }
+
+    /// <summary>目前宿主的行程識別碼(測試用)。The current host's process id, for tests.</summary>
+    internal int? HostProcessId
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _host?.ProcessId;
+            }
+        }
+    }
+
+    /// <summary>目前宿主是否在工作階段的 Job Object 裡(測試用)。Whether the current host is in the session's job, for tests.</summary>
+    internal bool HostIsInJob()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        CapitalHostProcess? host;
+        CapitalHostJob? job;
+
+        lock (_stateLock)
+        {
+            host = _host;
+            job = _job;
+        }
+
+        return host is not null && job is not null && host.IsIn(job);
     }
 
     /// <summary>
@@ -464,12 +518,15 @@ public sealed partial class CapitalHostSession : IAsyncDisposable
         }
 
         JsonElement result = response.GetValueOrThrow();
+        _ = CapitalWire.TryParseDomesticState(CapitalWire.GetString(result, "domestic"), out CapitalDomesticState domestic);
 
         return new CapitalConnectionStatus
         {
             Connected = result.TryGetProperty("connected", out JsonElement connected) && connected.ValueKind == JsonValueKind.True,
             Connections = CapitalWire.GetInt32(result, "connections") ?? 0,
             OutLimit = result.TryGetProperty("outLimit", out JsonElement outLimit) && outLimit.ValueKind == JsonValueKind.True,
+            Domestic = domestic,
+            DomesticReason = CapitalWire.GetString(result, "domesticReason"),
         };
     }
 

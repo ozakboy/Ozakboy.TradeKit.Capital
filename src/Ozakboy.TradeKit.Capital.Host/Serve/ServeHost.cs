@@ -74,6 +74,8 @@ internal sealed partial class ServeHost
     {
         ConnectDeadline,
         ReconnectDue,
+        DomesticReadyDeadline,
+        DomesticReconnectDue,
     }
 
     /// <summary>
@@ -132,6 +134,9 @@ internal sealed partial class ServeHost
             return ServeExitCodes.SkComUnavailable;
         }
 
+        // 國內報價是選用的:建不起來只讓國內不可用,海外照常。The domestic side is optional; failing only disables it.
+        OpenDomestic();
+
         if (login.LogDirectory is { } logDirectory)
         {
             LogCode("SetLogPath", _source.SetLogPath(logDirectory));
@@ -185,7 +190,11 @@ internal sealed partial class ServeHost
         }
 
         _phase = Phase.Ready;
-        _out.WriteStatus(ServeStates.Ready);
+        WriteOverseasStatus(ServeStates.Ready);
+
+        // 海外就緒後才連國內;國內的結果只改 domestic 欄位,不影響海外的 ready 與結束碼。
+        // The domestic side connects only after the overseas side is ready; its outcome only changes the domestic fields.
+        StartDomestic();
 
         return await MainLoopAsync(cancellationToken).ConfigureAwait(true);
     }
@@ -233,6 +242,7 @@ internal sealed partial class ServeHost
                     if (await HandleRequestAsync(request.Line).ConfigureAwait(true))
                     {
                         CancelTimer();
+                        CancelDomesticTimer();
                         return ServeExitCodes.Success;
                     }
 
@@ -240,10 +250,18 @@ internal sealed partial class ServeHost
                 case InputEndedItem:
                     _log.Write("stdin 已關閉,離開報價主機後結束。");
                     CancelTimer();
+                    CancelDomesticTimer();
+                    LeaveDomestic();
                     _ = _source.LeaveMonitor();
                     return ServeExitCodes.Success;
                 case ConnectItem connect:
                     HandleConnect(connect.Code);
+                    break;
+                case DomesticConnectItem domestic:
+                    HandleDomesticConnect(domestic.Code);
+                    break;
+                case TimerItem { Kind: TimerKind.DomesticReadyDeadline or TimerKind.DomesticReconnectDue } timer:
+                    HandleDomesticTimer(timer);
                     break;
                 case TimerItem timer:
                     HandleTimer(timer);
@@ -259,7 +277,7 @@ internal sealed partial class ServeHost
             case Phase.Ready when code == CodeDisconnected:
                 _phase = Phase.Disconnected;
                 _attempt = 0;
-                _out.WriteStatus(ServeStates.Disconnected);
+                WriteOverseasStatus(ServeStates.Disconnected);
                 ScheduleReconnect();
                 break;
             case Phase.Disconnected or Phase.Reconnecting when code == CodeConnected:
@@ -325,7 +343,7 @@ internal sealed partial class ServeHost
         _phase = Phase.Ready;
         _attempt = 0;
         _log.Write("報價主機已重新連線,訂閱已重送。");
-        _out.WriteStatus(ServeStates.Ready);
+        WriteOverseasStatus(ServeStates.Ready);
     }
 
     private int ArmTimer(TimerKind kind, TimeSpan due)
@@ -386,6 +404,8 @@ internal sealed partial class ServeHost
     private sealed record InputEndedItem : InboxItem;
 
     private sealed record ConnectItem(int Code) : InboxItem;
+
+    private sealed record DomesticConnectItem(int Code) : InboxItem;
 
     private sealed record TimerItem(TimerKind Kind, int Generation) : InboxItem;
 }

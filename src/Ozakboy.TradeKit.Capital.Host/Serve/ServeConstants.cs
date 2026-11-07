@@ -48,6 +48,30 @@ internal static class ServeStates
 }
 
 /// <summary>
+/// 協定上國內報價的狀態(<c>status</c> 事件與 <c>status</c> 回應的 <c>domestic</c> / <c>domesticReason</c>;與用戶端
+/// <c>CapitalDomesticReasons</c> 一致)。國內不可用不影響海外的 ready 與結束碼。
+/// The domestic quote states on the wire (domestic and domesticReason of the status event and the status response;
+/// they match the client's CapitalDomesticReasons). The domestic side being unavailable never affects the overseas
+/// ready or the exit code.
+/// </summary>
+internal static class DomesticStates
+{
+    public const string Connecting = "connecting";
+    public const string Ready = "ready";
+    public const string Disconnected = "disconnected";
+    public const string Unavailable = "unavailable";
+
+    /// <summary>EnterMonitorLONG 回非 0(代碼在 domesticCode)。EnterMonitorLONG answered non-zero.</summary>
+    public const string ReasonEnterRejected = "enter_rejected";
+
+    /// <summary>時限內沒有收到 3003(商品基本資料完成)。No 3003 within the limit.</summary>
+    public const string ReasonReadyTimeout = "ready_timeout";
+
+    /// <summary>收到 3002,正在退避重連。A 3002 arrived; reconnecting with backoff.</summary>
+    public const string ReasonConnectionLost = "connection_lost";
+}
+
+/// <summary>
 /// 協定上回應錯誤的 <c>code</c>(與用戶端 <c>CapitalErrorCodes</c> 的同名常數一致)。
 /// Error codes on the wire; they match the client's CapitalErrorCodes.
 /// </summary>
@@ -60,6 +84,8 @@ internal static class WireErrorCodes
     public const string ProductsRejected = "capital.products.rejected";
     public const string SubscribeRejected = "capital.subscribe.rejected";
     public const string KLineRejected = "capital.kline.rejected";
+    public const string KLineTimeout = "capital.kline.timeout";
+    public const string DomesticUnavailable = "capital.domestic.unavailable";
 }
 
 /// <summary>
@@ -71,4 +97,7 @@ internal static class ServeEnvironmentNames
     public const string LoginId = "CAPITAL_LOGIN_ID";
     public const string Password = "CAPITAL_PASSWORD";
     public const string LogDirectory = "CAPITAL_LOG_DIR";
+
+    /// <summary>父行程 PID(0.2.0 起用戶端會帶;不是機密)。The parent PID, passed by the client since 0.2.0; not a secret.</summary>
+    public const string ParentPid = "CAPITAL_PARENT_PID";
 }

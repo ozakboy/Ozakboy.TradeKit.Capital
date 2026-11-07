@@ -170,10 +170,27 @@ public static class CapitalErrorCodes
     public const string SubscribeRejected = "capital.subscribe.rejected";
 
     /// <summary>
-    /// K 線請求被群益拒絕(例如 1042 = 不支援的 K 線類型)。
-    /// The K-line request was rejected by Capital (for example 1042, an unsupported K-line type).
+    /// K 線請求被群益拒絕(例如 1042 = 不支援的 K 線類型;國內代碼不存在或沒有權限時實測 9999、3023)。
+    /// The K-line request was rejected by Capital (for example 1042, an unsupported K-line type; an unknown domestic
+    /// code or a missing permission was measured as 9999 or 3023).
     /// </summary>
     public const string KLineRejected = "capital.kline.rejected";
+
+    /// <summary>
+    /// 國內 K 線請求在 60 秒內沒有收到結束事件(<c>OnKLineComplete</c>)。可以稍後再試;已收到的筆數在 <c>Data["received"]</c>。
+    /// The domestic K-line request saw no end event (OnKLineComplete) within 60 seconds. Retryable later; the rows
+    /// received so far are counted in Data["received"].
+    /// </summary>
+    public const string KLineTimeout = "capital.kline.timeout";
+
+    /// <summary>
+    /// 國內報價目前不可用:<see cref="CapitalErrorDataKeys.DomesticState"/> 是當時的國內狀態(<c>unavailable</c> /
+    /// <c>disconnected</c>),<see cref="CapitalErrorDataKeys.Reason"/> 是原因(<see cref="CapitalDomesticReasons"/>),
+    /// EnterMonitorLONG 被拒時群益代碼在 <see cref="CapitalErrorDataKeys.Code"/>。海外報價不受影響。
+    /// The domestic quote service is not available: DomesticState holds the domestic state at the time, Reason the
+    /// reason, and Code Capital's code when EnterMonitorLONG was rejected. Overseas quotes are unaffected.
+    /// </summary>
+    public const string DomesticUnavailable = "capital.domestic.unavailable";
 
     /// <summary>
     /// K 線文字讀不懂(格式不是 <c>yyyy/MM/dd[ HH:mm], O, H, L, C, V</c>)。

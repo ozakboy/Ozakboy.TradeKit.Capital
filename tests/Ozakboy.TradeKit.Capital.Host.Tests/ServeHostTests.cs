@@ -30,9 +30,9 @@ public sealed class ServeHostTests
     {
         using HostRig rig =await HostRig.Create().StartReadyAsync();
 
-        string[] states = [.. rig.Output.Messages.Where(HostRig.IsEvent("status")).Select(m => m.GetProperty("data").GetProperty("state").GetString()!)];
-
-        Assert.AreEqual("logging_in|connecting|ready", Join(states));
+        // 0.2.0 起國內狀態改變會再送 state 不變的 status;這裡只看海外自己的轉換。
+        // Since 0.2.0 domestic changes send further status events with the same state; only overseas transitions count.
+        Assert.AreEqual("logging_in|connecting|ready", Join(rig.OverseasStates()));
         Assert.AreEqual("open|login|enter", Join(rig.Source.Calls));
     }
 
@@ -343,7 +343,7 @@ public sealed class ServeHostTests
         await Task.Delay(50);
 
         Assert.AreEqual(1, rig.Source.CallCount("login"), "a reconnect never logs in again");
-        Assert.AreEqual(2, rig.Output.Messages.Count(HostRig.IsStatus("ready")));
+        Assert.AreEqual(2, rig.OverseasStates().Count(state => state == "ready"));
         string[] calls = rig.Source.Calls;
         Assert.AreEqual("stocks FX,SUSDJPY#CME,NQ0000#CBOT,YM0000", calls.Last(call => call.StartsWith("stocks", StringComparison.Ordinal)));
         Assert.AreEqual(2, calls.Count(call => call == "ticks CME,NQ0000"));
@@ -365,7 +365,7 @@ public sealed class ServeHostTests
         Assert.IsTrue(SpinWait.SpinUntil(() => rig.Source.CallCount("enter") >= 3, TimeSpan.FromSeconds(5)), "kept trying after a silent attempt");
 
         rig.Source.RaiseConnection(3001);
-        _ = await rig.Output.WaitForAsync(m => rig.Output.Messages.Count(HostRig.IsStatus("ready")) == 2, Wait);
+        _ = await rig.Output.WaitForAsync(m => rig.OverseasStates().Count(state => state == "ready") == 2, Wait);
     }
 
     [TestMethod]

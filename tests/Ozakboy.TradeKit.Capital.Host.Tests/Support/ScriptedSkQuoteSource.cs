@@ -215,6 +215,105 @@ internal sealed class ScriptedSkQuoteSource : ISkQuoteSource
         return Quotes.TryGetValue(index, out quote) ? 0 : 1;
     }
 
+    // ── 國內報價。預設照 2026-11-07 probe-tw 實測:EnterMonitorLONG 回 0 → 3001 → 3003;每個 K 線請求結束都有 OnKLineComplete("##")。
+    // Domestic quotes. Defaults follow the 2026-11-07 measurements: 3001 then 3003 after EnterMonitorLONG, and one
+    // OnKLineComplete("##") at the end of every K-line request. Domestic calls are recorded apart from the overseas ones.
+
+    public event Action<int>? DomesticConnection;
+
+    public event Action<string, string>? DomesticKLine;
+
+    public event Action<string>? DomesticKLineComplete;
+
+    private readonly ConcurrentQueue<string> _domesticCalls = new();
+
+    public SkOpenFailure? DomesticOpenFailure { get; set; }
+
+    /// <summary>OpenDomestic 直接擲例外(例如掛事件失敗)。OpenDomestic throws.</summary>
+    public bool DomesticOpenThrows { get; set; }
+
+    public int DomesticEnterCode { get; set; }
+
+    /// <summary>國內 EnterMonitor 後自動送 3001、3003。Whether 3001 and 3003 follow automatically.</summary>
+    public bool DomesticAutoReady { get; set; } = true;
+
+    public int DomesticKLineCode { get; set; }
+
+    /// <summary>國內 K 線請求後自動送結束事件。Whether OnKLineComplete follows automatically.</summary>
+    public bool DomesticAutoComplete { get; set; } = true;
+
+    /// <summary>國內 K 線請求後自動送的 (代碼, 資料)。Rows sent after a domestic K-line request.</summary>
+    public List<(string Code, string Data)> DomesticKLineRows { get; } = [];
+
+    public string[] DomesticCalls => [.. _domesticCalls];
+
+    public int DomesticCallCount(string prefix) => _domesticCalls.Count(call => call.StartsWith(prefix, StringComparison.Ordinal));
+
+    public void RaiseDomesticConnection(int code) => DomesticConnection?.Invoke(code);
+
+    public void RaiseDomesticKLine(string code, string data) => DomesticKLine?.Invoke(code, data);
+
+    public void RaiseDomesticKLineComplete() => DomesticKLineComplete?.Invoke("##");
+
+    public SkOpenFailure? OpenDomestic()
+    {
+        _domesticCalls.Enqueue("open");
+
+        if (DomesticOpenThrows)
+        {
+            throw new InvalidOperationException("no connection point");
+        }
+
+        return DomesticOpenFailure;
+    }
+
+    public int EnterDomesticMonitor()
+    {
+        _domesticCalls.Enqueue("enter");
+
+        if (DomesticEnterCode == 0 && DomesticAutoReady)
+        {
+            Later(() =>
+            {
+                DomesticConnection?.Invoke(3001);
+                DomesticConnection?.Invoke(3003);
+            });
+        }
+
+        return DomesticEnterCode;
+    }
+
+    public int LeaveDomesticMonitor()
+    {
+        _domesticCalls.Enqueue("leave");
+        return 0;
+    }
+
+    public int RequestDomesticKLine(string stockNo, short kLineType, short outType, short tradeSession, string startDate, string endDate, short minuteNumber)
+    {
+        _domesticCalls.Enqueue($"kline {stockNo} {kLineType} {outType} {tradeSession} {startDate} {endDate} {minuteNumber}");
+
+        if (DomesticKLineCode == 0)
+        {
+            (string Code, string Data)[] rows = [.. DomesticKLineRows];
+            bool complete = DomesticAutoComplete;
+            Later(() =>
+            {
+                foreach ((string code, string data) in rows)
+                {
+                    DomesticKLine?.Invoke(code, data);
+                }
+
+                if (complete)
+                {
+                    DomesticKLineComplete?.Invoke("##");
+                }
+            });
+        }
+
+        return DomesticKLineCode;
+    }
+
     public void Dispose()
     {
     }

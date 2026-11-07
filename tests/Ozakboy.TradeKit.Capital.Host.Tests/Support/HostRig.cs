@@ -44,7 +44,37 @@ internal sealed class HostRig : IDisposable
         KLineNoData = TimeSpan.FromMilliseconds(500),
         KLinePoll = TimeSpan.FromMilliseconds(20),
         ReconnectDelays = [TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(100)],
+        DomesticReadyTimeout = TimeSpan.FromMilliseconds(500),
+        DomesticKLineTimeout = TimeSpan.FromMilliseconds(500),
     });
+
+    /// <summary>
+    /// 海外狀態的轉換序列:status 事件的 state,連續重複的合併成一個。0.2.0 起國內狀態改變會再送一次 state 不變的 status,
+    /// 所以要看海外轉換就得把重複的合併。
+    /// The overseas transitions: the states of the status events with consecutive repeats merged. Since 0.2.0 a domestic
+    /// change sends another status with the same state, so repeats are merged to see the overseas transitions.
+    /// </summary>
+    public string[] OverseasStates()
+    {
+        List<string> states = [];
+
+        foreach (JsonElement message in Output.Messages.Where(IsEvent("status")))
+        {
+            string state = message.GetProperty("data").GetProperty("state").GetString()!;
+
+            if (states.Count == 0 || states[^1] != state)
+            {
+                states.Add(state);
+            }
+        }
+
+        return [.. states];
+    }
+
+    /// <summary>國內狀態變成指定值的 status 事件。A status event whose domestic state is the given one.</summary>
+    public static Func<JsonElement, bool> IsDomestic(string domestic) => element =>
+        element.TryGetProperty("event", out JsonElement name) && name.GetString() == "status"
+        && element.GetProperty("data").TryGetProperty("domestic", out JsonElement value) && value.GetString() == domestic;
 
     /// <summary>啟動 RunAsync(不等它結束)。Starts RunAsync without waiting for it.</summary>
     public HostRig Start(ServeLogin? login = null)
