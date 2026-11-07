@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <!-- 宿主是 net10.0-windows、x64;測試專案跟著它,才能直接參照宿主的內部型別。The host is net10.0-windows x64; so is this. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+
+    <!--
+      改用 MSTest 內建的 Microsoft.Testing.Platform 執行器(理由見 Ozakboy.TradeKit.Capital.Tests)。
+      Uses MSTest's built-in Microsoft.Testing.Platform runner; see Ozakboy.TradeKit.Capital.Tests.
+    -->
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest.TestAdapter" Version="4.0.2" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.0.2" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.1.0" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Ozakboy.TradeKit.Capital.Host\Ozakboy.TradeKit.Capital.Host.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <Using Include="Ozakboy.TradeKit.Capital.Host.Serve" />
+  </ItemGroup>
+
+</Project>

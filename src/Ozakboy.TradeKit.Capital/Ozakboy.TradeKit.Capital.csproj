@@ -1,0 +1,98 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Ozakboy.TradeKit.Capital</PackageId>
+    <AssemblyName>Ozakboy.TradeKit.Capital</AssemblyName>
+    <RootNamespace>Ozakboy.TradeKit.Capital</RootNamespace>
+
+    <Title>Ozakboy.TradeKit.Capital — 群益 SKCOM 海外報價(外匯 + 海期)用戶端</Title>
+    <Description>群益證券 SKCOM 海外報價(國際外匯 + 海外期貨)的 .NET 10 用戶端,只接報價,不含下單與帳務。SKCOM 是 COM 元件,由隨套件出貨的 x64 宿主行程(Ozakboy.TradeKit.Capital.Host,建置時複製到輸出目錄的 capital-host\)掛載,用戶端以 stdio 換行分隔 JSON 與它溝通:帳密只走子行程環境變數、宿主讀完即清;登入失敗絕不重試,宿主崩潰以退避重啟並重送訂閱,報價主機斷線(3002)由宿主退避重連。價格一律 decimal(原始整數 ÷ 10^小數位數;K 線的單精度浮點文字依小數位數四捨五入),成交與分 K 時間依交易所時區轉 UTC(分 K 的時間是那一分鐘的結束)。需使用者自行從群益官網下載 SKCOM 並以系統管理員註冊 x64 版。預期失敗一律回 Result,錯誤碼 capital.* 集中在 CapitalErrorCodes。A .NET 10 client for the overseas quotes (international FX and overseas futures) of Capital Securities' SKCOM API: quotes only, no orders or accounts. SKCOM is a COM component, so an x64 host process shipped in this package (copied to capital-host\ in the build output) loads it, and the client talks to it over newline-delimited JSON on stdio. Credentials travel only through the child process's environment and the host clears them after reading; a failed login is never retried, a crashed host is restarted with backoff and its subscriptions re-sent, and a quote-server disconnect (3002) is reconnected by the host with backoff. Prices are always decimal, and tick and minute-bar times are converted to UTC by the exchange's time zone (a minute bar's time is the end of its minute). The user downloads SKCOM from Capital's site and registers the x64 build as an administrator. Every expected failure is a Result with a capital.* code from CapitalErrorCodes.</Description>
+    <PackageTags>ozakboy;tradekit;capital;skcom;taiwan;forex;fx;overseas-futures;futures;market-data;quote;tick;kline;com;stdio;supervisor;process;reconnect;result-type;decimal;dotnet;csharp</PackageTags>
+
+    <PackageProjectUrl>https://github.com/ozakboy/Ozakboy.TradeKit.Capital</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ozakboy/Ozakboy.TradeKit.Capital</RepositoryUrl>
+    <PackageReleaseNotes>0.1.0 — First release. CapitalHostSession starts and supervises the shipped SKCOM host (credentials only through child-process environment variables, never a file or a log), reads quote and tick events into a bounded channel that drops the oldest and counts, lists overseas products, subscribes, and fetches K-lines (minute, day, week, month). A failed login is never retried; an unexpected host exit is restarted with 1, 2, 5, 10 and 30 second backoff up to MaxRestarts and the subscriptions are re-sent. Measured against SKCOM 2.13.59 on 2026-11-06: product list and details, quotes, ticks with replay, K-lines, and the FX, CME, CBOT and NYM time zones. Not measured: the 3002 reconnect, login failure codes other than by the manual, and the time zones of other exchanges (IsVerified = false). Full notes: https://github.com/ozakboy/Ozakboy.TradeKit.Capital/blob/main/CHANGELOG.md</PackageReleaseNotes>
+
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- Result / Error 幾乎每個檔案都用到,集中宣告。Result and Error are used almost everywhere, so the namespace is implicit. -->
+  <ItemGroup>
+    <Using Include="Ozakboy.Core.Abstractions" />
+  </ItemGroup>
+
+  <!-- 內部解析輔助型別需要直接測試,它們不屬於公開契約。Internal parsing helpers are tested directly; they are not public contract. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Ozakboy.TradeKit.Capital.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\logo.png" Pack="true" PackagePath="\" />
+    <None Update="buildTransitive\Ozakboy.TradeKit.Capital.targets" Pack="true" PackagePath="buildTransitive\Ozakboy.TradeKit.Capital.targets" />
+  </ItemGroup>
+
+  <!--
+    相依政策:只允許 .NET BCL、Microsoft 官方套件與 Ozakboy.* 自研套件,判定看「遞移相依」。
+    Ozakboy.Core.Abstractions(Result)與 Ozakboy.Security(遮罩 stderr 轉進來的紀錄)的型別都在公開契約上,所以明確指定;
+    版本對齊 Ozakboy.TradeKit.Shioaji,同一個應用程式裡兩個券商套件不會拉出兩個版本。不引用群益的 Interop.SKCOMLib.dll。
+    Dependency policy: only the .NET BCL, first-party Microsoft packages and Ozakboy.* packages, judged by the transitive
+    graph. Ozakboy.Core.Abstractions (Result) and Ozakboy.Security (masking the host's stderr) are on the public contract
+    and pinned directly, at the versions Ozakboy.TradeKit.Shioaji uses. Capital's Interop.SKCOMLib.dll is not referenced.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Ozakboy.Core.Abstractions" Version="0.3.0" />
+    <PackageReference Include="Ozakboy.Security" Version="0.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+  </ItemGroup>
+
+  <!--
+    宿主隨套件出貨:pack 時先建置宿主專案(x64、framework-dependent),把它的輸出放進 tools\capital-host\;
+    使用端由 buildTransitive\Ozakboy.TradeKit.Capital.targets 在建置時複製到 $(OutDir)capital-host\。
+    宿主是 net10.0-windows,本專案是 net10.0,所以不用 ProjectReference(TFM 不相容),改在 pack 時以 MSBuild 工作建置。
+    The host ships inside the package: at pack time the host project (x64, framework-dependent) is built and its output
+    placed in tools\capital-host\; consumers get it copied to $(OutDir)capital-host\ by the buildTransitive targets. The
+    host targets net10.0-windows and this project net10.0, so a ProjectReference is not used (incompatible frameworks);
+    the host is built by an MSBuild task at pack time instead.
+  -->
+  <PropertyGroup>
+    <CapitalHostProject>$(MSBuildThisFileDirectory)..\Ozakboy.TradeKit.Capital.Host\Ozakboy.TradeKit.Capital.Host.csproj</CapitalHostProject>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackCapitalHost</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="PackCapitalHost">
+    <!--
+      這裡是本專案 TFM 專屬的內層建置,TargetFramework=net10.0 會被繼承;宿主要用自己的 net10.0-windows,所以拿掉。
+      0.1.0 起宿主是 self-contained(自帶 .NET 與 Windows Desktop runtime):使用端多半是自帶 runtime 發佈的桌面程式,
+      機器上不一定有共用的 Desktop Runtime,framework-dependent 的宿主會起不來。所以這裡跑 Publish,不是 Build。
+      This runs in this project's TFM-specific inner build, so TargetFramework=net10.0 would be inherited; removed.
+      The host is self-contained (it carries the .NET and Windows Desktop runtimes): consumers are mostly desktop apps
+      published self-contained, so a shared Desktop Runtime may be missing and a framework-dependent host would not
+      start. Hence Publish rather than Build.
+    -->
+    <PropertyGroup>
+      <_CapitalHostOutputDir>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)capital-host-publish\$(Configuration)\</_CapitalHostOutputDir>
+    </PropertyGroup>
+
+    <RemoveDir Directories="$(_CapitalHostOutputDir)" />
+    <MSBuild Projects="$(CapitalHostProject)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);PublishDir=$(_CapitalHostOutputDir);RuntimeIdentifier=win-x64;SelfContained=true"
+             RemoveProperties="TargetFramework;TargetFrameworks"
+             BuildInParallel="false" />
+
+    <ItemGroup>
+      <_CapitalHostFile Include="$(_CapitalHostOutputDir)**\*" Exclude="$(_CapitalHostOutputDir)**\*.xml" />
+      <TfmSpecificPackageFile Include="@(_CapitalHostFile)" PackagePath="tools\capital-host\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <Error Condition="!Exists('$(_CapitalHostOutputDir)Ozakboy.TradeKit.Capital.Host.exe')" Text="宿主建置輸出裡找不到 Ozakboy.TradeKit.Capital.Host.exe:$(_CapitalHostOutputDir)" />
+  </Target>
+
+  <!--
+    刻意不引用 Microsoft.SourceLink.GitHub 套件,與其他 Ozakboy.* 套件一致。
+    SourceLink is deliberately not referenced as a package, in line with the other Ozakboy.* packages.
+  -->
+
+</Project>

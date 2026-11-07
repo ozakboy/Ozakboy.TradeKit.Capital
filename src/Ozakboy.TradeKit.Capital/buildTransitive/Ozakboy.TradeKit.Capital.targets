@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    把套件裡的群益 SKCOM 宿主(tools\capital-host\)複製到使用端的 $(OutDir)capital-host\,發佈時一併帶上。
+    CapitalHostOptions.DefaultHostPath(AppContext.BaseDirectory) 指的就是這裡。
+    Copies the SKCOM host shipped in the package (tools\capital-host\) to the consumer's $(OutDir)capital-host\, and
+    includes it on publish. CapitalHostOptions.DefaultHostPath(AppContext.BaseDirectory) points here.
+  -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\tools\capital-host\**\*"
+          Link="capital-host\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
+</Project>

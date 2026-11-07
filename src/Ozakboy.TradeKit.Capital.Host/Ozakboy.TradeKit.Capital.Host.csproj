@@ -13,6 +13,17 @@
     <UseWindowsForms>true</UseWindowsForms>
     <!-- SKCOM 有 x86 / x64 兩版,這裡固定 x64。SKCOM ships x86 and x64 builds; this host is fixed to x64. -->
     <PlatformTarget>x64</PlatformTarget>
+    <!--
+      apphost 固定 win-x64。平常建置是 framework-dependent(測試專案要參照它,self-contained 的 exe 不能被參照,NETSDK1151);
+      隨 Ozakboy.TradeKit.Capital 套件出貨的那份由套件的 pack 以 SelfContained=true 另外 Publish(自帶 .NET 與 Windows Desktop runtime)。
+      輸出路徑不附 RID,維持 bin\<設定>\net10.0-windows\,探針的用法不變。
+      The apphost is fixed to win-x64. Regular builds are framework-dependent (the test project references this exe, and a
+      self-contained exe cannot be referenced, NETSDK1151); the copy shipped in the Ozakboy.TradeKit.Capital package is
+      published separately with SelfContained=true by that package's pack. The output path carries no RID.
+    -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <AssemblyName>Ozakboy.TradeKit.Capital.Host</AssemblyName>
     <RootNamespace>Ozakboy.TradeKit.Capital.Host</RootNamespace>
     <IsPackable>false</IsPackable>

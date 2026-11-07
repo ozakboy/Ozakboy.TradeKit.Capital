@@ -1,0 +1,43 @@
+namespace Ozakboy.TradeKit.Capital.Host.Serve;
+
+/// <summary>
+/// <c>serve</c> 模式的各種時限(預設值照 DESIGN §2;測試與假宿主可縮短)。
+/// The serve mode's timings; defaults follow DESIGN §2, and tests and the fake host may shorten them.
+/// </summary>
+internal sealed class ServeTimings
+{
+    /// <summary>EnterMonitorLONG 後等 3001 的上限(60 秒)。How long to wait for 3001 after EnterMonitorLONG.</summary>
+    public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>商品清單與商品明細各自的上限(60 秒)。The limit for the product list and for the details, each.</summary>
+    public TimeSpan ProductsTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>K 線:最後一筆之後多久沒新資料算結束(1.5 秒)。K-lines end this long after the last row.</summary>
+    public TimeSpan KLineQuiet { get; init; } = TimeSpan.FromSeconds(1.5);
+
+    /// <summary>K 線:一筆都沒來時的上限(10 秒)。K-lines end after this long with no row at all.</summary>
+    public TimeSpan KLineNoData { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>K 線靜默偵測的輪詢間隔。The polling interval of the K-line quiet detection.</summary>
+    public TimeSpan KLinePoll { get; init; } = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>3002 之後重新 EnterMonitorLONG 的退避(5、10、30、60 秒,之後一律 60 秒)。The reconnect backoff.</summary>
+    public IReadOnlyList<TimeSpan> ReconnectDelays { get; init; } =
+        [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)];
+
+    /// <summary>
+    /// 第 <paramref name="attempt"/> 次(從 0 起)重連前的等待;超過清單長度用最後一個。
+    /// The wait before reconnect attempt <paramref name="attempt"/> (from 0); the last entry repeats.
+    /// </summary>
+    /// <param name="attempt">第幾次。Attempt number.</param>
+    /// <returns>等待時間。The wait.</returns>
+    public TimeSpan ReconnectDelay(int attempt)
+    {
+        if (ReconnectDelays.Count == 0)
+        {
+            return TimeSpan.FromSeconds(60);
+        }
+
+        return ReconnectDelays[Math.Clamp(attempt, 0, ReconnectDelays.Count - 1)];
+    }
+}
