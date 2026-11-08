@@ -32,7 +32,8 @@ SKCOM 是 COM 元件,必須跑在有訊息迴圈的 STA 執行緒上。所以這
 
 ## 需求
 
-- Windows x64,裝 **.NET 10 Desktop Runtime**(宿主用 Windows Forms 的訊息迴圈,framework-dependent)。
+- Windows x64。宿主隨套件以 self-contained 出貨(自帶 .NET 與 Windows Desktop runtime),**不用為宿主另裝 .NET runtime**;
+  你自己的程式照常需要 .NET 10 runtime。
 - **SKCOM x64 由你自己下載、註冊。**本套件**不含**、也不轉散布任何群益的檔案。請從群益官網下載 SKCOM API,把 `x64`
   資料夾放到固定位置,**以系統管理員身分**執行裡面的 `install.bat`。之後若搬走或刪掉那個資料夾,註冊會指向不存在的 DLL
   (`capital.skcom.file_missing`),重新註冊即可。

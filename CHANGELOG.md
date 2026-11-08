@@ -43,8 +43,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   **A host kept running after its parent ended**, possibly still logged in. The client now puts the host in a
   KILL_ON_JOB_CLOSE Job Object held until DisposeAsync, the host also watches its parent PID every 5 seconds and ends
   like on stdin EOF once it is gone, and a shutdown that has not finished within 15 seconds is forced.
+- **文件**:README 的需求段誤寫宿主是 framework-dependent、要另裝 .NET 10 Desktop Runtime;宿主實際以 self-contained 出貨(0.1.0 起即如此),不用另裝。
+  **Docs**: the README said the host needs the .NET 10 Desktop Runtime. The host ships self-contained, so no runtime
+  install is needed.
 
 ### 已知問題 / Known issues
+
+- **海外 1 分 K 只保留約一個月,一次請求也有筆數上限**(實機 2026-11-07):往回每 7 天查一次,10-08 以前每段都回 0 根(CME 約 30 天、外匯約三週);
+  一次查 30 天時 CME 剛好回 30,000 根、外匯只回最後 16 個交易日,超過的最舊部分被截掉且不報錯。呼叫端記錄「已下載到哪裡」時,
+  請以實際拿到的第一根為準,不要以請求的起日為準。
+  **Overseas minute bars go back about one month, and one request has a row limit.** Older 7-day requests return
+  no rows. A 30-day request returned exactly 30,000 rows for CME and only the last 16 trading days for FX. Record
+  coverage from the first bar you receive, not from the requested start date.
 
 - **全盤的收盤是結算價**:全盤分 K 的日盤最後一根(13:45;結算日 13:30)與全盤日 K 的收盤是期交所的結算價,AM 盤日 K 的收盤才是最後成交價
   (2026-11-06 台指:最後成交 39786、結算 39652)。套件回原始資料、不修正。

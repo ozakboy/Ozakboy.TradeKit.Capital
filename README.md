@@ -36,8 +36,8 @@ crash or a hang in SKCOM never takes your application down.
 
 ## Requirements
 
-- Windows x64 with the **.NET 10 Desktop Runtime** (the host uses the Windows Forms message loop; it is
-  framework-dependent).
+- Windows x64. The host ships self-contained in the package, with its own .NET and Windows Desktop runtime. You do
+  not need to install a .NET runtime for the host. Your own app needs the .NET 10 runtime as usual.
 - **SKCOM x64, downloaded and registered by you.** This package does **not** contain or redistribute any Capital file.
   Download the SKCOM API from Capital's official site, put the `x64` folder somewhere permanent, and run its
   `install.bat` **as an administrator**. If you later move or delete that folder, registration points at a missing
