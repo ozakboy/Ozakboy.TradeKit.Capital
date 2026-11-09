@@ -112,6 +112,9 @@ internal sealed partial class ServeHost
                 ForgetStaleCompletes();
                 SetDomestic(DomesticPhase.Ready, null, null);
                 _log.Write("國內報價主機就緒(3003)。");
+
+                // 0.3.0:重連後(或斷線期間記下的)訂閱整組重送,索引重新查。After a reconnect the subscriptions are re-sent.
+                ResendDomesticSubscriptions();
                 EmitDomesticStatus();
                 ReleaseDomesticDeferred();
                 break;
@@ -121,6 +124,9 @@ internal sealed partial class ServeHost
 
                 // 斷線後不期待之前請求的 OnKLineComplete 還會來。After a disconnect no earlier completion is expected.
                 ForgetStaleCompletes();
+
+                // 0.3.0:索引可能重新配置,舊對照作廢(與海外同一個理由)。Indexes may be reassigned, so the old map is dropped.
+                ClearDomesticIndex();
                 SetDomestic(DomesticPhase.Disconnected, DomesticStates.ReasonConnectionLost, null);
                 EmitDomesticStatus();
                 ReleaseDomesticDeferred();
@@ -248,14 +254,31 @@ internal sealed partial class ServeHost
     /// A status event for the overseas state, carrying the domestic fields once the domestic side has started or failed.
     /// </summary>
     private void WriteOverseasStatus(string state) =>
-        _out.WriteStatus(state, _domesticPhase == DomesticPhase.Idle ? null : WriteDomesticFields);
+        _out.WriteStatus(state, _domesticPhase == DomesticPhase.Idle && _optionsPhase == DomesticPhase.Idle ? null : WriteSideFields);
 
     /// <summary>
     /// 國內狀態改變:再送一次 status 事件,state 照舊是海外目前的狀態(舊版用戶端看到的只是重複的同一個狀態)。
     /// The domestic state changed: another status event whose state is still the current overseas state, so an older
     /// client just sees the same state again.
     /// </summary>
-    private void EmitDomesticStatus() => _out.WriteStatus(OverseasWireState(), WriteDomesticFields);
+    private void EmitDomesticStatus() => _out.WriteStatus(OverseasWireState(), WriteSideFields);
+
+    /// <summary>
+    /// status 事件上國內與海外選擇權的欄位:已開始(或已確定不可用)的那一邊才寫。
+    /// The domestic and overseas option members of a status event, written only for a side that has started or failed.
+    /// </summary>
+    private void WriteSideFields(Utf8JsonWriter writer)
+    {
+        if (_domesticPhase != DomesticPhase.Idle)
+        {
+            WriteDomesticFields(writer);
+        }
+
+        if (_optionsPhase != DomesticPhase.Idle)
+        {
+            WriteOverseasOptionsFields(writer);
+        }
+    }
 
     private void WriteDomesticFields(Utf8JsonWriter writer)
     {

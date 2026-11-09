@@ -51,8 +51,94 @@ internal sealed class OsQuoteEventsSink : ISKOSQuoteLibEvents
     /// <summary>成交(索引, 序號, 日期, 時間, 價格, 量, 是否為訂閱當下回補的歷史成交)。</summary>
     public event Action<int, int, int, int, long, int, bool>? Tick;
 
+    /// <summary>最佳五檔(九位小數;serve 不接,探針用)。</summary>
+    public event Action<SkBookEvent>? Best5;
+
+    /// <summary>最佳十檔(九位小數;serve 不接,探針用)。</summary>
+    public event Action<SkBookEvent>? Best10;
+
     /// <inheritdoc/>
     public void OnConnect(int nCode, int nSocketCode) => Connected?.Invoke(nCode, nSocketCode);
+
+    /// <inheritdoc/>
+    public void OnNotifyBest5NineDigitLONG(
+        int nStockIdx,
+        long nBestBid1,
+        int nBestBidQty1,
+        long nBestBid2,
+        int nBestBidQty2,
+        long nBestBid3,
+        int nBestBidQty3,
+        long nBestBid4,
+        int nBestBidQty4,
+        long nBestBid5,
+        int nBestBidQty5,
+        long nBestAsk1,
+        int nBestAskQty1,
+        long nBestAsk2,
+        int nBestAskQty2,
+        long nBestAsk3,
+        int nBestAskQty3,
+        long nBestAsk4,
+        int nBestAskQty4,
+        long nBestAsk5,
+        int nBestAskQty5) =>
+        Best5?.Invoke(new SkBookEvent(-1, nStockIdx,
+        [
+            nBestBid1, nBestBidQty1, nBestBid2, nBestBidQty2, nBestBid3, nBestBidQty3, nBestBid4, nBestBidQty4, nBestBid5, nBestBidQty5,
+            nBestAsk1, nBestAskQty1, nBestAsk2, nBestAskQty2, nBestAsk3, nBestAskQty3, nBestAsk4, nBestAskQty4, nBestAsk5, nBestAskQty5,
+        ]));
+
+    /// <inheritdoc/>
+    public void OnNotifyBest10NineDigitLONG(
+        int nStockIdx,
+        long nBestBid1,
+        int nBestBidQty1,
+        long nBestBid2,
+        int nBestBidQty2,
+        long nBestBid3,
+        int nBestBidQty3,
+        long nBestBid4,
+        int nBestBidQty4,
+        long nBestBid5,
+        int nBestBidQty5,
+        long nBestBid6,
+        int nBestBidQty6,
+        long nBestBid7,
+        int nBestBidQty7,
+        long nBestBid8,
+        int nBestBidQty8,
+        long nBestBid9,
+        int nBestBidQty9,
+        long nBestBid10,
+        int nBestBidQty10,
+        long nBestAsk1,
+        int nBestAskQty1,
+        long nBestAsk2,
+        int nBestAskQty2,
+        long nBestAsk3,
+        int nBestAskQty3,
+        long nBestAsk4,
+        int nBestAskQty4,
+        long nBestAsk5,
+        int nBestAskQty5,
+        long nBestAsk6,
+        int nBestAskQty6,
+        long nBestAsk7,
+        int nBestAskQty7,
+        long nBestAsk8,
+        int nBestAskQty8,
+        long nBestAsk9,
+        int nBestAskQty9,
+        long nBestAsk10,
+        int nBestAskQty10) =>
+        Best10?.Invoke(new SkBookEvent(-1, nStockIdx,
+        [
+            nBestBid1, nBestBidQty1, nBestBid2, nBestBidQty2, nBestBid3, nBestBidQty3, nBestBid4, nBestBidQty4, nBestBid5, nBestBidQty5,
+            nBestBid6, nBestBidQty6, nBestBid7, nBestBidQty7, nBestBid8, nBestBidQty8, nBestBid9, nBestBidQty9, nBestBid10, nBestBidQty10,
+            nBestAsk1, nBestAskQty1, nBestAsk2, nBestAskQty2, nBestAsk3, nBestAskQty3, nBestAsk4, nBestAskQty4, nBestAsk5, nBestAskQty5,
+            nBestAsk6, nBestAskQty6, nBestAsk7, nBestAskQty7, nBestAsk8, nBestAskQty8, nBestAsk9, nBestAskQty9, nBestAsk10, nBestAskQty10,
+        ]));
 
     /// <inheritdoc/>
     public void OnOverseaProducts(string bstrValue) => Product?.Invoke(bstrValue ?? string.Empty);

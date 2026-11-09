@@ -15,6 +15,7 @@ internal sealed class ProtocolWriter
     private readonly Stream _output;
     private readonly Lock _gate = new();
     private readonly ArrayBufferWriter<byte> _buffer = new(1024);
+    private Action<Utf8JsonWriter>? _statusSuffix;
     private bool _broken;
 
     /// <summary>
@@ -53,7 +54,15 @@ internal sealed class ProtocolWriter
         {
             writer.WriteString("state", state);
             extra?.Invoke(writer);
+            Volatile.Read(ref _statusSuffix)?.Invoke(writer);
         });
+
+    /// <summary>
+    /// 0.3.0:每則 status 事件最後都附上的欄位(目前是 <c>skcomVersion</c>;讀到版本之後才設)。
+    /// Members appended to every status event from now on; currently skcomVersion, set once the version is known.
+    /// </summary>
+    /// <param name="suffix">寫欄位的委派;<see langword="null"/> 表示不附。Writes the members; null appends nothing.</param>
+    public void SetStatusSuffix(Action<Utf8JsonWriter>? suffix) => Volatile.Write(ref _statusSuffix, suffix);
 
     /// <summary>
     /// 寫成功回應:<c>{"id":…,"result":{…}}</c>。

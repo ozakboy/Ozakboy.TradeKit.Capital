@@ -86,6 +86,16 @@ internal static class WireErrorCodes
     public const string KLineRejected = "capital.kline.rejected";
     public const string KLineTimeout = "capital.kline.timeout";
     public const string DomesticUnavailable = "capital.domestic.unavailable";
+
+    // ── 0.3.0 ──
+    public const string SubscribeLimitExceeded = "capital.subscribe.limit_exceeded";
+    public const string OverseasOptionsUnavailable = "capital.overseas_options.unavailable";
+    public const string AccountUnavailable = "capital.account.unavailable";
+    public const string AccountInitFailed = "capital.account.init_failed";
+    public const string AccountCertFailed = "capital.account.cert_failed";
+    public const string AccountQueryRejected = "capital.account.query_rejected";
+    public const string AccountQueryFailed = "capital.account.query_failed";
+    public const string AccountQueryTimeout = "capital.account.query_timeout";
 }
 
 /// <summary>

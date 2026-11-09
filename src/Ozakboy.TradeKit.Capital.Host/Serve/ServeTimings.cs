@@ -32,6 +32,37 @@ internal sealed class ServeTimings
     public TimeSpan DomesticKLineTimeout { get; init; } = TimeSpan.FromSeconds(60);
 
     /// <summary>
+    /// 0.3.0:海外選擇權 EnterMonitorLONG 後等連線事件的上限(60 秒,比照國內;待實測)。首次逾時 → 不可用;重連時逾時 → 稍後再試。
+    /// How long to wait for the overseas option connect event; a first-time timeout makes it unavailable.
+    /// </summary>
+    public TimeSpan OverseasOptionsReadyTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// 0.3.0:以事件回傳的帳務查詢,最後一則事件之後安靜多久算結束(6 秒,沿用 probe-full)。
+    /// An event-based account query ends after this much quiet; 6 seconds, as in probe-full.
+    /// </summary>
+    public TimeSpan AccountQuiet { get; init; } = TimeSpan.FromSeconds(6);
+
+    /// <summary>
+    /// 0.3.0:收過查詢狀態事件之後安靜多久算結束(2 秒,沿用 probe-full)。
+    /// After the query status event, the query ends after this much quiet; 2 seconds, as in probe-full.
+    /// </summary>
+    public TimeSpan AccountQuietAfterStatus { get; init; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>0.3.0:一個帳務查詢的上限(60 秒)。The limit of one account query.</summary>
+    public TimeSpan AccountQueryLimit { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>0.3.0:帳務查詢靜默偵測的輪詢間隔。The polling interval of the account quiet detection.</summary>
+    public TimeSpan AccountPoll { get; init; } = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>
+    /// 0.3.0:委託 / 成交回報查詢兩次之間的最小間隔(手冊 4-2-97、4-2-98「每次查詢間需間隔五秒」,多留半秒)。兩個查詢共用同一個間隔。
+    /// The minimum gap between two order or fill report queries (the manual asks for five seconds; half a second is
+    /// added). Both queries share the gap.
+    /// </summary>
+    public TimeSpan ReportInterval { get; init; } = TimeSpan.FromSeconds(5.5);
+
+    /// <summary>
     /// 3002 之後重新 EnterMonitorLONG 的退避(5、10、30、60 秒,之後一律 60 秒);海外與國內各自計次、共用這份清單。
     /// The reconnect backoff; the overseas and the domestic side count their attempts separately and share this list.
     /// </summary>

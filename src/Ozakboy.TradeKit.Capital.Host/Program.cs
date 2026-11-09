@@ -16,9 +16,14 @@ if (args.Length > 0 && args[0] == "serve")
 
 Console.OutputEncoding = Encoding.UTF8;
 
+if (args.Length > 0 && args[0] == "probe-full")
+{
+    return await RunFullProbeAsync(args.Skip(1).ToArray()).ConfigureAwait(false);
+}
+
 if (args.Length == 0 || (args[0] != "probe" && args[0] != "probe-tw"))
 {
-    Console.WriteLine("用法:Ozakboy.TradeKit.Capital.Host serve | probe --out <輸出目錄> [--seconds 120] [--kline-days 3] [--symbol 交易所,代碼]... | probe-tw --out <輸出目錄>");
+    Console.WriteLine("用法:Ozakboy.TradeKit.Capital.Host serve | probe --out <輸出目錄> [--seconds 120] [--kline-days 3] [--symbol 交易所,代碼]... | probe-tw --out <輸出目錄> | probe-full --out <輸出目錄> [--seconds 180] [--accounts-only]");
     return 2;
 }
 
@@ -54,3 +59,36 @@ if (domestic)
 
 ProbeRunner runner = new(options, log);
 return await sta.InvokeAsync(() => runner.RunAsync(userId, password)).ConfigureAwait(false);
+
+// probe-full:版本、期貨帳務查詢(唯讀)、國內期權 / 海外五檔十檔 / 海外選擇權報價(見 docs/DESIGN.md §5.2)。
+// 輸出一律經遮罩器:登入帳號 → <ID>、帳號號碼 → <ACCTn>、戶名 → <NAME>,對照表只在記憶體。
+// probe-full: version, read-only futures account queries and the new quote feeds; all output is redacted.
+static async Task<int> RunFullProbeAsync(string[] arguments)
+{
+    FullProbeOptions? fullOptions = FullProbeOptions.Parse(arguments, out string fullError);
+
+    if (fullOptions is null)
+    {
+        Console.WriteLine(fullError);
+        return 2;
+    }
+
+    Console.WriteLine(fullOptions.AccountsOnly
+        ? "群益完整探針(只跑 SKCOM 版本與期貨帳務查詢):只查詢、不下單,這支程式沒有任何下單能力。帳號密碼只在記憶體使用,不寫進任何檔案。請先關掉 TideTrade,避免同一個帳號同時登入。"
+        : "群益完整探針(SKCOM 版本、期貨帳務查詢、國內期權 / 海外五檔十檔 / 海外選擇權報價;報價部分要開盤時跑):只查詢、不下單,這支程式沒有任何下單能力。帳號密碼只在記憶體使用,不寫進任何檔案。請先關掉 TideTrade,避免同一個帳號同時登入。");
+    string fullUserId = ConsoleSecret.Read("身分證字號:").ToUpperInvariant();
+    string fullPassword = ConsoleSecret.Read("登入密碼:");
+
+    if (fullUserId.Length == 0 || fullPassword.Length == 0)
+    {
+        Console.WriteLine("帳號或密碼是空的,結束。");
+        return 2;
+    }
+
+    ProbeRedactor redactor = new();
+    redactor.AddLoginId(fullUserId);
+    using ProbeLog fullLog = new(fullOptions.OutputDirectory, redactor);
+    using StaComThread fullSta = new();
+    FullProbeRunner fullRunner = new(fullOptions, fullLog, redactor);
+    return await fullSta.InvokeAsync(() => fullRunner.RunAsync(fullUserId, fullPassword)).ConfigureAwait(false);
+}

@@ -209,4 +209,64 @@ public static class CapitalErrorCodes
     /// A warning, logged only: a quote's denominator (nDenominator) is not 1; prices are still scaled by decimals.
     /// </summary>
     public const string PriceFractionUnsupported = "capital.price.fraction_unsupported";
+
+    // ── 0.3.0 ──
+
+    /// <summary>
+    /// 警告(只記日誌):宿主回報的 SKCOM 版本不在 <see cref="CapitalSkcomVersion.Tested"/>。照常運作,但 COM 介面是依 2.13.59 x64 產生的。
+    /// A warning, logged only: the host's SKCOM version is not a measured one. Everything keeps running, but the COM
+    /// interfaces were generated from 2.13.59 x64.
+    /// </summary>
+    public const string SkcomVersionUntested = "capital.skcom.version_untested";
+
+    /// <summary>
+    /// 國內訂閱超過上限(手冊 4-4-1:一個 SKQuoteLib 物件的成交訂閱 10 檔;上限在 <c>Data["limit"]</c>)。沒有送出。
+    /// The domestic subscription limit was exceeded (ten codes per SKQuoteLib object by the manual); nothing was sent.
+    /// </summary>
+    public const string SubscribeLimitExceeded = "capital.subscribe.limit_exceeded";
+
+    /// <summary>
+    /// 海外選擇權報價目前不可用:<see cref="CapitalErrorDataKeys.OverseasOptionsState"/> 是當時的狀態,<see cref="CapitalErrorDataKeys.Reason"/>
+    /// 是原因。其他報價不受影響。
+    /// The overseas option quote service is not available; other feeds are unaffected.
+    /// </summary>
+    public const string OverseasOptionsUnavailable = "capital.overseas_options.unavailable";
+
+    /// <summary>
+    /// 宿主建不起 SKOrderLib,帳務查詢不可用(原因在 <see cref="CapitalErrorDataKeys.Reason"/>、<see cref="CapitalErrorDataKeys.HResult"/>)。
+    /// The host could not create SKOrderLib, so account queries are unavailable.
+    /// </summary>
+    public const string AccountUnavailable = "capital.account.unavailable";
+
+    /// <summary>
+    /// 帳務初始化失敗(<c>SKOrderLib_Initialize</c> 或 <c>GetUserAccount</c> 回非 0;群益代碼在 <see cref="CapitalErrorDataKeys.Code"/>、
+    /// 步驟在 <see cref="CapitalErrorDataKeys.Step"/>)。下一次帳務請求會再試(不是登入,重試無害)。
+    /// Account initialisation failed; the next account request tries again (it is not a login, so retrying is harmless).
+    /// </summary>
+    public const string AccountInitFailed = "capital.account.init_failed";
+
+    /// <summary>
+    /// 讀憑證失敗(<c>ReadCertByID</c> 回非 0;群益代碼在 <see cref="CapitalErrorDataKeys.Code"/>)。下一次帳務請求會再試。
+    /// Reading the certificate failed; the next account request tries again.
+    /// </summary>
+    public const string AccountCertFailed = "capital.account.cert_failed";
+
+    /// <summary>
+    /// 帳務查詢函式直接回了錯誤代碼(在 <see cref="CapitalErrorDataKeys.Code"/>)。
+    /// The account query function answered an error code.
+    /// </summary>
+    public const string AccountQueryRejected = "capital.account.query_rejected";
+
+    /// <summary>
+    /// 帳務查詢失敗:查詢狀態事件回 1、海外查詢第一筆是錯誤、回報查詢回 M999,或 COM 呼叫失敗。訊息已遮罩帳號。
+    /// The account query failed: a status of 1, an error first row, an M999 answer or a failed COM call. Accounts are
+    /// masked in the message.
+    /// </summary>
+    public const string AccountQueryFailed = "capital.account.query_failed";
+
+    /// <summary>
+    /// 帳務查詢在 60 秒內沒有結束。
+    /// The account query did not end within 60 seconds.
+    /// </summary>
+    public const string AccountQueryTimeout = "capital.account.query_timeout";
 }

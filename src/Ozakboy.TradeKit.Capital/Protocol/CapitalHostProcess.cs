@@ -461,7 +461,7 @@ internal sealed class CapitalHostProcess : IAsyncDisposable
                     return;
                 }
 
-                _ = pending.Completion.TrySetResult(ReadResponse(pending.Method, root));
+                _ = pending.Completion.TrySetResult(ReadResponse(pending.Method, root, _mask));
                 return;
             }
 
@@ -469,7 +469,7 @@ internal sealed class CapitalHostProcess : IAsyncDisposable
         }
     }
 
-    private static Result<JsonElement> ReadResponse(string method, JsonElement root)
+    private static Result<JsonElement> ReadResponse(string method, JsonElement root, Func<string, string> mask)
     {
         if (root.TryGetProperty("result", out JsonElement result))
         {
@@ -484,7 +484,8 @@ internal sealed class CapitalHostProcess : IAsyncDisposable
                 method,
                 CapitalWire.GetString(error, "code") ?? CapitalErrorCodes.ProtocolError,
                 CapitalWire.GetString(error, "message") ?? string.Empty,
-                data);
+                data,
+                mask);
         }
 
         return CapitalErrors.Protocol("回應既沒有 result 也沒有 error。The response has neither result nor error.");

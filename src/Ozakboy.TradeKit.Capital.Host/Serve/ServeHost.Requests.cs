@@ -38,7 +38,30 @@ internal sealed partial class ServeHost
             case "status":
                 HandleStatus(requestId);
                 return false;
+            case "tw-products":
+                await HandleDomesticProductsAsync(requestId, line, parameters).ConfigureAwait(true);
+                return false;
+            case "tw-subscribe":
+                HandleDomesticSubscribe(requestId, line, parameters);
+                return false;
+            case "depth":
+                HandleDepth(requestId, parameters);
+                return false;
+            case "oo-products":
+                await HandleOverseasOptionProductsAsync(requestId, line).ConfigureAwait(true);
+                return false;
+            case "oo-subscribe":
+                HandleOverseasOptionSubscribe(requestId, line, parameters, depth: false);
+                return false;
+            case "oo-depth":
+                HandleOverseasOptionSubscribe(requestId, line, parameters, depth: true);
+                return false;
+            case "accounts" or "account-rights" or "account-open-interest" or "account-os-rights" or "account-os-open-interest"
+                or "account-orders" or "account-fills":
+                await HandleAccountRequestAsync(requestId, method, parameters).ConfigureAwait(true);
+                return false;
             case "shutdown":
+                LeaveOverseasOptions();
                 LeaveDomestic();
                 LogCode("LeaveMonitor", _source.LeaveMonitor());
                 _out.WriteResult(requestId, _ => { });
@@ -361,17 +384,18 @@ internal sealed partial class ServeHost
 
     private void ResendSubscriptions()
     {
-        if (_subscriptions.Count == 0)
+        if (_subscriptions.Count > 0)
         {
-            return;
+            LogCode("重送 RequestStocks", _source.RequestStocks(string.Join('#', _subscriptions)));
+
+            foreach (string symbol in _subscriptions)
+            {
+                LogCode("重送 RequestTicks " + symbol, _source.RequestTicks(symbol));
+            }
         }
 
-        LogCode("重送 RequestStocks", _source.RequestStocks(string.Join('#', _subscriptions)));
-
-        foreach (string symbol in _subscriptions)
-        {
-            LogCode("重送 RequestTicks " + symbol, _source.RequestTicks(symbol));
-        }
+        // 0.3.0:十檔也重送。The best 10 subscriptions are re-sent too.
+        ResendDepth();
     }
 
     private async Task HandleKLineAsync(long id, JsonElement parameters)
@@ -536,6 +560,10 @@ internal sealed partial class ServeHost
             }
 
             WriteDomesticFields(writer);
+
+            // 0.3.0:海外選擇權的狀態與 SKCOM 版本。The overseas option state and the SKCOM version.
+            WriteOverseasOptionsFields(writer);
+            WriteSkcomVersion(writer);
         });
     }
 

@@ -13,6 +13,14 @@ namespace Ozakboy.TradeKit.Capital;
 public readonly record struct CapitalSymbol(string Exchange, string Code)
 {
     /// <summary>
+    /// 0.3.0:國內期貨 / 選擇權事件(<see cref="CapitalDomesticQuote"/> 等)的 <see cref="CapitalMarketEvent.Symbol"/> 用的交易所代碼
+    /// (期交所;群益回報的「交易所別」也是這個字)。只用來標示,<b>不能</b>拿去 <see cref="CapitalHostSession.SubscribeAsync"/> 訂海外報價。
+    /// The exchange code on the symbol of domestic futures and options events (TAIFEX). It only labels them; it does
+    /// <b>not</b> work with SubscribeAsync, which is for overseas quotes.
+    /// </summary>
+    public const string DomesticExchange = "TAIFEX";
+
+    /// <summary>
     /// 解析 <c>交易所,代碼</c>。
     /// Parses <c>exchange,code</c>.
     /// </summary>

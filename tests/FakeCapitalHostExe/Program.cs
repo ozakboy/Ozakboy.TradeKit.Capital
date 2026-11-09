@@ -24,6 +24,11 @@ ServeTimings timings = new()
     ReconnectDelays = settings.ReconnectDelays,
     DomesticReadyTimeout = settings.DomesticReadyTimeout,
     DomesticKLineTimeout = settings.DomesticKLineTimeout,
+    OverseasOptionsReadyTimeout = settings.OverseasOptionsReadyTimeout,
+    AccountQuiet = settings.AccountQuiet,
+    AccountQuietAfterStatus = settings.AccountQuietAfterStatus,
+    AccountPoll = TimeSpan.FromMilliseconds(20),
+    ReportInterval = settings.ReportInterval,
 };
 
 using FakeSkQuoteSource source = new(settings);

@@ -15,6 +15,10 @@ namespace Ozakboy.TradeKit.Capital.Protocol;
 /// </param>
 /// <param name="DomesticReason">國內不可用或斷線的原因。Why the domestic side is unavailable or disconnected.</param>
 /// <param name="DomesticCode">國內 EnterMonitorLONG 被拒時的群益代碼。Capital's code when the domestic EnterMonitorLONG was rejected.</param>
+/// <param name="SkcomVersion">0.3.0:SKCOM 版本(宿主讀得到之後每則都帶)。The SKCOM version, once the host knows it.</param>
+/// <param name="OverseasOptions">0.3.0:海外選擇權狀態(協定字串同國內)。The overseas option state.</param>
+/// <param name="OverseasOptionsReason">0.3.0:海外選擇權不可用或斷線的原因。Why the overseas options are unavailable or disconnected.</param>
+/// <param name="OverseasOptionsCode">0.3.0:海外選擇權 EnterMonitorLONG 被拒時的群益代碼。Capital's code when it was rejected.</param>
 internal sealed record HostStatus(
     string State,
     string? Reason,
@@ -23,4 +27,8 @@ internal sealed record HostStatus(
     string? Message,
     string? Domestic = null,
     string? DomesticReason = null,
-    int? DomesticCode = null);
+    int? DomesticCode = null,
+    string? SkcomVersion = null,
+    string? OverseasOptions = null,
+    string? OverseasOptionsReason = null,
+    int? OverseasOptionsCode = null);

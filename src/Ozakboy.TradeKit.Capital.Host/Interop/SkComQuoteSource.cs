@@ -17,7 +17,7 @@ namespace Ozakboy.TradeKit.Capital.Host.Interop;
 /// domestic quote object is likewise created and hooked before login, and enters its monitor once the overseas side is
 /// ready (measured 2026-11-07: both connected at once work).
 /// </remarks>
-internal sealed class SkComQuoteSource : ISkQuoteSource
+internal sealed partial class SkComQuoteSource : ISkQuoteSource
 {
     private const int HResultClassNotRegistered = unchecked((int)0x80040154);
     private const int HResultModuleNotFound = unchecked((int)0x8007007E);
@@ -106,6 +106,10 @@ internal sealed class SkComQuoteSource : ISkQuoteSource
         quoteSink.Quote += index => Quote?.Invoke(index);
         quoteSink.Tick += (index, pointer, date, time, close, qty, history) =>
             Tick?.Invoke(new SkTickData(index, pointer, date, time, close, qty, history));
+
+        // 0.3.0:海外五檔 / 十檔(九位擴充整數)。Overseas best 5 and best 10, nine-digit integers.
+        quoteSink.Best5 += book => OverseasBest5?.Invoke(ToBook(book, 5, extended: false));
+        quoteSink.Best10 += book => OverseasBest10?.Invoke(ToBook(book, 10, extended: false));
         _quoteConnection = ComEventConnection.Advise(_quote, SkComIds.OsQuoteLibEventsIid, quoteSink);
 
         return null;
@@ -226,6 +230,7 @@ internal sealed class SkComQuoteSource : ISkQuoteSource
         sink.Connection += (kind, _) => DomesticConnection?.Invoke(kind);
         sink.KLine += (stockNo, data) => DomesticKLine?.Invoke(stockNo, data);
         sink.KLineComplete += end => DomesticKLineComplete?.Invoke(end);
+        HookDomesticLiveEvents(sink);
         _domesticConnection = ComEventConnection.Advise(_domestic, SkComDomesticIds.QuoteLibEventsIid, sink);
 
         return null;
@@ -250,6 +255,8 @@ internal sealed class SkComQuoteSource : ISkQuoteSource
         }
 
         _disposed = true;
+        _orderConnection?.Dispose();
+        _optionsConnection?.Dispose();
         _domesticConnection?.Dispose();
         _quoteConnection?.Dispose();
         _replyConnection?.Dispose();

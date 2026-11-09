@@ -9,7 +9,7 @@ namespace Ozakboy.TradeKit.Capital.Host.Tests.Support;
 /// automatically. Defaults follow the measured behaviour: 3001 (never 3003) arrives asynchronously after
 /// EnterMonitorLONG, and the product list ends with a "##" row.
 /// </summary>
-internal sealed class ScriptedSkQuoteSource : ISkQuoteSource
+internal sealed partial class ScriptedSkQuoteSource : ISkQuoteSource
 {
     private readonly ConcurrentQueue<string> _calls = new();
     private readonly ConcurrentDictionary<int, int> _indexLookups = new();

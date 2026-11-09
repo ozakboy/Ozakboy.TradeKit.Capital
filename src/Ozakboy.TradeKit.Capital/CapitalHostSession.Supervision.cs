@@ -189,6 +189,7 @@ public sealed partial class CapitalHostSession
 
                 // 行程沒了,國內也跟著沒了;新的宿主就緒後會重新回報。The process is gone and so is the domestic side.
                 SetDomesticState(CapitalDomesticState.NotStarted, null, null);
+                SetOverseasOptionsState(CapitalOverseasOptionsState.NotStarted, null, null);
 
                 if (_time.GetElapsedTime(readyAt) >= _options.StableAfter)
                 {
@@ -278,18 +279,24 @@ public sealed partial class CapitalHostSession
             host = _host;
         }
 
-        if (symbols.Length == 0 || host is null)
+        if (host is null)
         {
             return;
         }
 
-        Result<JsonElement> response = await host.RequestAsync("subscribe", writer => WriteSymbols(writer, symbols), ShortRequestTimeout, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (response.IsFailure)
+        if (symbols.Length > 0)
         {
-            CapitalHostLog.ResubscribeFailed(_logger, response.Error.Code);
+            Result<JsonElement> response = await host.RequestAsync("subscribe", writer => WriteSymbols(writer, symbols), ShortRequestTimeout, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (response.IsFailure)
+            {
+                CapitalHostLog.ResubscribeFailed(_logger, response.Error.Code);
+            }
         }
+
+        // 0.3.0:十檔、國內、海外選擇權的訂閱也重送。The 0.3.0 subscriptions are re-sent too.
+        await ResubscribeLiveAsync(host, cancellationToken).ConfigureAwait(false);
     }
 
     private void OnHostStatus(CapitalHostProcess source, HostStatus status)
@@ -324,6 +331,10 @@ public sealed partial class CapitalHostSession
 
         // 國內欄位與海外狀態各自獨立;state 只代表海外。The domestic fields are independent; state is overseas only.
         ApplyDomesticStatus(status);
+
+        // 0.3.0
+        ApplyOverseasOptionsStatus(status);
+        ApplySkcomVersion(status.SkcomVersion);
     }
 
     private void OnMarketEvent(string name, JsonElement data)
@@ -355,7 +366,11 @@ public sealed partial class CapitalHostSession
                 _ = _events.Writer.TryWrite(tick);
                 break;
             default:
-                WarnOnce("event:" + name, () => CapitalHostLog.EventDiscarded(_logger, "不認得的事件 / unknown event " + name));
+                if (!DispatchLiveEvent(name, data))
+                {
+                    WarnOnce("event:" + name, () => CapitalHostLog.EventDiscarded(_logger, "不認得的事件 / unknown event " + name));
+                }
+
                 break;
         }
     }

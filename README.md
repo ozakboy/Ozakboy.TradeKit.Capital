@@ -2,7 +2,9 @@
 
 A .NET 10 client for the **overseas quotes** of Capital Securities' (群益證券) SKCOM API: international FX and
 overseas futures; since 0.2.0 also **domestic futures historical K-lines** (TAIEX, mini and micro TAIEX futures, near
-month). **Quotes only** — no orders, no accounts.
+month). Version 0.3.0 (unreleased) adds domestic futures and options live quotes, the overseas best 5
+and best 10, overseas option quotes and **read-only futures account queries**. The package **cannot place, amend or
+cancel orders and cannot move funds**. It does not support features that need a securities account.
 
 [繁體中文](README_zh-TW.md)
 
@@ -16,23 +18,46 @@ crash or a hang in SKCOM never takes your application down.
 > credentials against SKCOM 2.13.59 on 2026-11-06 (see "Measured and unmeasured"). The `serve` protocol, the
 > supervision and the reconnection logic have so far been tested **only against the fake host** in `tests/`; the
 > 3002 reconnect in particular has never been seen live. Read that section before relying on it.
+> **The 0.3.0 features follow Capital's V2.13.59 manual and their formats were measured against real SKCOM with the
+> host's `probe-full` command on 2026-11-09**, then corrected (a futures-only account without positions or orders).
+> The "Measured" column below says what was measured and what only partly.
 
 ## What this release does
 
-| Scope | Status |
-| --- | --- |
-| Start and supervise the host (`CapitalHostSession`), credentials only through child-process environment variables | Done |
-| A failed login is reported once and **never retried** (`capital.login.failed`, `Data["code"]`, `Data["locked"]`) | Done |
-| Unexpected host exit: restart with 1, 2, 5, 10, 30 s backoff up to `MaxRestarts`, subscriptions re-sent | Done |
-| Quote-server disconnect (3002): the host reconnects with 5, 10, 30, 60 s backoff and re-sends every subscription | Done, unmeasured |
-| Overseas product list merged with product details (`GetProductsAsync`) | Done |
-| Quotes and ticks (`Events`, bounded channel, drops the oldest and counts `DroppedEvents`) | Done |
-| Historical K-lines: minute, day, week, month (`GetKLinesAsync`) | Done |
-| Connection status (`GetConnectionStatusAsync`; includes the domestic state since 0.2.0) | Done |
-| Domestic futures historical K-lines: minute and daily, full or AM session (`GetDomesticKLinesAsync`, 0.2.0) | Done, formats measured; `serve` unmeasured live |
-| Domestic state kept apart from the overseas one (`DomesticState`, `DomesticStateChanged`); an unavailable domestic side affects neither overseas quotes nor the exit code (0.2.0) | Done |
-| No orphaned host: Job Object (KILL_ON_JOB_CLOSE), ends on stdin EOF or when the parent disappears (0.2.0) | Done |
-| Orders, accounts, live Taiwan quotes, K-lines for listed stocks / ETFs / indexes, options chains | **Not in scope** |
+| Scope | Status | Measured |
+| --- | --- | --- |
+| Start and supervise the host (`CapitalHostSession`), credentials only through child-process environment variables | Done | Fake host only |
+| A failed login is reported once and **never retried** (`capital.login.failed`, `Data["code"]`, `Data["locked"]`) | Done | Codes from the manual |
+| Unexpected host exit: restart with 1, 2, 5, 10, 30 s backoff up to `MaxRestarts`, every subscription re-sent | Done | Fake host only |
+| Quote-server disconnect (3002): the host reconnects with 5, 10, 30, 60 s backoff and re-sends every subscription | Done | Not measured |
+| Overseas product list merged with product details (`GetProductsAsync`) | Done | Measured |
+| Overseas quotes and ticks (`Events`, bounded channel, drops the oldest and counts `DroppedEvents`) | Done | Measured |
+| Overseas historical K-lines: minute, day, week, month (`GetKLinesAsync`) | Done | Measured |
+| Connection status (`GetConnectionStatusAsync`, with the domestic and overseas option states and the SKCOM version) | Done | Overseas part measured |
+| Domestic futures historical K-lines: minute and daily, full or AM session (`GetDomesticKLinesAsync`, 0.2.0) | Done | Formats measured; `serve` not measured |
+| Domestic state kept apart from the overseas one (`DomesticState`, `DomesticStateChanged`, 0.2.0) | Done | Fake host only |
+| No orphaned host: Job Object (KILL_ON_JOB_CLOSE), ends on stdin EOF or when the parent disappears (0.2.0) | Done | Fake host only |
+| SKCOM version label and start-up check (`SkcomVersion`, `IsTestedSkcomVersion`, 0.3.0) | Done | Measured (`2.13.59_x64`, readable before login); `serve` not measured |
+| Domestic futures and options product lists (`GetDomesticProductsAsync`, 0.3.0) | Done | Measured (six fields, paired day-only "AM" codes) |
+| Domestic futures and options live quotes, ticks, best 5 and live minute bars (`SubscribeDomesticAsync`, 0.3.0) | Done | Formats and times measured (night session); after midnight and the 10-code cap not measured |
+| Overseas best 5 and market depth best 10 (`SubscribeDepthAsync`, 0.3.0) | Done | Formats measured; what triggers the best 5 not settled |
+| Overseas option products, quotes, ticks, best 5 and best 10 (`OverseasOptionsState`, `SubscribeOverseasOptions*Async`, 0.3.0) | Done | Connect, list, quotes and books measured; **ticks and time zones not measured** |
+| Read-only futures account queries: accounts, rights, open interest, order and fill reports (`GetAccountsAsync` and others, 0.3.0) | Done | Accounts and the empty-account replies measured; **rows with positions not measured**; Chinese arrives garbled |
+| Placing, amending, reducing, re-pricing or cancelling orders, smart orders, fund transfers | **Not provided, and never will be** | — |
+| Features that need a securities account: Taiwan stock quotes, listed K-lines, stock orders, holdings, sub-brokerage | **Not in scope** | — |
+
+## Compatible SKCOM versions
+
+This package was measured against **SKCOM 2.13.59 x64**. The host's COM interfaces are generated from that version's
+type library (`tools/SkComInteropGen`). COM dual interfaces are called by **method order**. If a new Capital build
+reorders the methods, the host calls the wrong method. Therefore:
+
+- At start-up the host reads `SKCenterLib_GetSKAPIVersionAndBit`. `CapitalHostSession.SkcomVersion` holds the value
+  (for example `2.13.59_x64`) and `IsTestedSkcomVersion` tells whether it is in `CapitalSkcomVersion.Tested`.
+- For a version that was not measured, the session logs one warning (`capital.skcom.version_untested`, event 4015)
+  and **keeps running**.
+- Before you upgrade SKCOM, run the host's `probe-full` probe with the new build. Then run the generator against the
+  new `Interop.SKCOMLib.dll` and confirm that the method order did not change.
 
 ## Requirements
 
@@ -155,6 +180,81 @@ Worth knowing:
 - A known Capital data error: the volume of the Friday 2026-10-30 night session (belonging to 11/02) is twice TAIFEX's
   official figure; see [`docs/DESIGN.md`](docs/DESIGN.md) §6.
 
+### Domestic live quotes, overseas best 10 and overseas options (0.3.0)
+
+```csharp
+// Domestic futures and options: quotes, ticks (the day's replay first), best 5 with the extended level, live
+// minute bars. The whole set holds at most 10 codes (manual 4-4-1). Every code comes in a pair: the one ending in
+// "AM" (TX00AM) is day session only, so subscribe the full-session code (TX00) for the night session.
+IReadOnlyList<CapitalDomesticProduct> futures = (await session.GetDomesticProductsAsync(CapitalDomesticMarket.Futures)).GetValueOrThrow();
+await session.SubscribeDomesticAsync(["TX00", "MTX00"]);
+
+// Overseas best 10 (market depth). The overseas best 5 is assumed to come with the ticks of SubscribeAsync.
+await session.SubscribeDepthAsync([CapitalSymbol.Parse("CME,NQ0000")]);
+
+// Overseas options (SKOOQuoteLib) have their own state; an unavailable side does not affect the other feeds.
+if (session.OverseasOptionsState == CapitalOverseasOptionsState.Ready)
+{
+    var products = (await session.GetOverseasOptionProductsAsync()).GetValueOrThrow();
+    // products[i].Symbol is the "exchange,code" to subscribe with (e.g. CME,ES00100X6); Name and LastTradeDate too
+}
+
+await foreach (var item in session.Events.ReadAllAsync(cancellationToken))
+{
+    switch (item)
+    {
+        case CapitalDomesticQuote quote: break;            // price = raw integer / 10^Decimals; a zero ("no value") is null
+        case CapitalDomesticTick tick: break;              // IsSimulated marks a pre-open match; nDate is the calendar day
+        case CapitalDomesticLiveBar bar: break;            // OpenTimeUtc = Capital's end-of-minute label minus 1 minute
+        case CapitalBest5 best5: break;                    // best5.Market tells the feed
+        case CapitalBest10 best10: break;
+        case CapitalOverseasOptionQuote optionQuote: break;
+        case CapitalOverseasOptionTick optionTick: break;  // TimeUtc is null for an unknown exchange
+    }
+}
+```
+
+- The symbol of a domestic event always has the exchange `CapitalSymbol.DomesticExchange` (`TAIFEX`). It only labels
+  the event. Do not pass it to `SubscribeAsync`.
+- Every subscription merges with the current set. The host re-sends the whole set after a reconnect, and the session
+  re-sends it after a host restart. During the first domestic or overseas option connect, the host holds requests
+  until the connect has an outcome.
+- A value that is not available is not set to zero. A zero price in a domestic quote or tick or an overseas option
+  quote is null (the first quote after subscribing was measured to be partly zero), live bar prices are null when the
+  decimals are unknown, and empty 0 / 0 book levels stay as Capital sends them, so drop zero prices before use.
+- Measured on 2026-11-09: a night-session tick's `nDate` is the calendar day, futures ticks carry milliseconds only,
+  and a live bar's time is the end of its minute. Not measured yet: dates after midnight.
+
+### Read-only futures account queries (0.3.0)
+
+```csharp
+// The host initialises SKOrderLib on the first account request (Initialize, GetUserAccount, ReadCertByID).
+IReadOnlyList<CapitalAccount> accounts = (await session.GetAccountsAsync()).GetValueOrThrow();
+string futuresAccount = accounts.First(a => a.Kind == CapitalAccountKind.DomesticFutures).FullAccount!;
+
+var rights = await session.GetFutureRightsAsync(futuresAccount, CapitalCoinType.All);       // one row per currency
+var positions = await session.GetOpenInterestAsync(futuresAccount);                         // "no data" is an empty list
+var orders = await session.GetOrderReportAsync(futuresAccount, CapitalOrderReportFormat.All); // 5.5 s between report queries
+```
+
+- **Queries only.** In the host's `ISKOrderLib` COM definition, every method that could change an order, a position or
+  funds is an uncallable placeholder. A reflection test checks it. This package will not add order functions.
+- Each record type has named properties parsed by the manual's field order and `RawFields`. A named property is null
+  when it cannot be read, never zero. The accounts, the rights (41 domestic fields, 31 overseas) and the "no data"
+  replies were measured on 2026-11-09 with an account without positions; **rows with positions or orders are not
+  measured yet**, so read `RawFields` when in doubt.
+- **Chinese arrives garbled**: Capital's account replies (SKOrderLib) turn Chinese into irreversible mojibake ("查無資料"
+  becomes `?dμL﹐eRA`). The package restores the measured fixed phrases only (`CapitalSkcomText.Repair`, already applied
+  to currencies and error messages); for other text such as the holder's name use `CapitalSkcomText.LooksGarbled`.
+  Chinese in the quote feeds is fine.
+- **Do not send the same query back to back**: the same query function sent again 1-2 seconds after the previous one
+  ended is rejected with 1019 (`capital.account.query_rejected`, `Data["code"]` = 1019). Wait a few seconds.
+- Failures: `capital.account.unavailable`, `capital.account.init_failed` and `cert_failed` (with Capital's code and the
+  step; the next request tries again), `capital.account.query_rejected`, `query_failed` and `query_timeout`.
+- Account numbers, holder names and IDs never reach the host's stderr or your log. They are masked as `<ACCT>`,
+  `<NAME>` and `<ID>` as soon as they arrive. `ToString()` of the record types shows only the last 3 characters of the
+  account. `CapitalAccount.RawFields` holds the holder's ID and name, so keep it private.
+
 ## Design decisions worth knowing
 
 ### Why a child process on stdio rather than HTTP
@@ -258,6 +358,26 @@ synchronous SKCOM call, say), the host exits forcibly.
 - The time zones of exchanges other than FX, NYM, CME and CBOT.
 - Capital's daily login limit and subscription limit (around 100 symbols by hearsay) are unconfirmed and not enforced.
 - Quotes with `nDenominator` other than 1, and the meaning of the trading day for `INDEX` products.
+- **The parts of 0.3.0 the 2026-11-09 `probe-full` run could not reach**: account rows with positions or orders and
+  the meaning of their amounts, rights coin types 1 / 2 and open-interest formats 2 / 3 (blocked by 1019), whether
+  `ReadCertByID` is required, tick and live bar dates after midnight, the domestic 10-code cap, what triggers the
+  overseas best 5, overseas option ticks and time zones, and the text encoding of report strings. The item-by-item
+  results are in [`docs/DESIGN.md`](docs/DESIGN.md) §7.
+
+**0.3.0 measured** (SKCOM 2.13.59 x64, a futures-only account, the 2026-11-09 night session, with the host's
+`probe-full` command; details in DESIGN §5.3):
+
+- The version string `2.13.59_x64`, readable before login.
+- Domestic product lists have six fields (option series rows five), and every code comes as an "AM" day-only code and a
+  full-session code; quote `sDecimal` is 2 for futures and options; the first quote after subscribing is partial.
+- Domestic tick `nDate` is the calendar day, futures carry milliseconds only, and the replay starts with the pre-open
+  simulated match (`nSimulate` = 1); a live bar's time is the end of its minute; empty book levels are 0 / 0.
+- Overseas best 5 and best 10 prices divide by 10^decimals and the best 10's first five equal the best 5; overseas
+  options send 3001 only, list five fields ending with `##,##,##,##,##`, accept `#`-joined subscriptions and send an
+  unscaled strike.
+- Accounts are `TF` / `OF`; queries take the broker code plus the account; the status event arrives before the rows;
+  without positions the domestic open interest returns `001,…`, the overseas one `@@,001,…` and the reports `M003`;
+  overseas rights have 31 fields.
 
 ## The host's `probe` command
 
@@ -265,6 +385,12 @@ synchronous SKCOM call, say), the host exits forcibly.
 SKCOM output (product lists, quotes, ticks, K-lines) to measure formats. It reads quotes only. The output folder may
 contain the login ID in SKCOM's own logs (`sklog\`); keep it private. `probe-tw --out <folder>` is the domestic
 counterpart, running a fixed set of `RequestKLineAMByDate` queries (it produced 0.2.0's domestic measurements).
+`probe-full --out <folder> [--seconds 180] [--accounts-only]` measures the 0.3.0 formats: the version, the account
+queries, domestic futures and options, the overseas best 5 and best 10, and overseas options. Its output masks account
+numbers, holder names and the login ID (except `sklog\`), and its account part calls read-only queries only. 0.3.0 was
+checked item by item against its 2026-11-09 output; the items it could not reach (see above) need another run under
+other conditions (with positions, after midnight, with overseas option trades). Known issue: it does not exit on its
+own after writing `done`; close it by hand (DESIGN §6).
 
 ## Testing
 
@@ -279,6 +405,13 @@ No test touches SKCOM or needs credentials:
   previous night session, minute-end times, empty bars, the 60,000-row cap keeping the newest, 9999 for unknown
   codes) and can make it unavailable, disconnect or never send the end event; further tests start the fake host
   directly and check that it ends on stdin EOF, when its parent disappears, and when its Job Object closes.
+  Since 0.3.0 it also simulates domestic live quotes, the overseas best 5 and best 10, overseas options and the account
+  queries: what the 2026-11-09 run measured follows the measurement (product lists and AM codes, the partial first
+  quote, millisecond ticks, the "no data" replies and garbled Chinese of the account queries, 31 overseas rights fields,
+  the overseas option list format), and the rest (account rows with positions, overseas option tick time zones)
+  follows the manual. It can make the overseas options unavailable, fail to
+  create SKOrderLib, fail the initialisation or the certificate, fail the rights query with the account in the message
+  (to check masking), and report another SKCOM version.
 - **`Ozakboy.TradeKit.Capital.Host.Tests`** drives the protocol layer in memory with a scriptable `ISkQuoteSource`.
 
 ```
@@ -290,11 +423,18 @@ dotnet test -c Release
 - No default credentials; none is written to a file, a log, a command line or a `ToString`.
 - The host's stderr is masked line by line before it reaches your logger; stdout carries protocol messages only.
 - SKCOM's own log folder (`LogDirectory`) may contain the login ID; it is your folder, keep it out of version control.
+- 0.3.0: account numbers, holder names and IDs are registered for masking as soon as they arrive, in the host and in
+  the client. They never reach stderr or a log. `ToString()` of the account record types shows only the last 3
+  characters of the account.
+- 0.3.0: **no order capability.** Every method of the host's `ISKOrderLib` that could change an order, a position or
+  funds is a placeholder that takes only `IntPtr`. The generator rejects forbidden names, and
+  `SkComOrderInteropSafetyTests` checks by reflection that the callable methods are exactly the reviewed read-only queries.
 
 ## Dependency policy
 
 Only the .NET BCL, first-party Microsoft packages and `Ozakboy.*` packages, judged by the **transitive** graph. No
-Capital file is referenced or redistributed: the COM interfaces are declared by hand.
+Capital file is referenced or redistributed: `tools/SkComInteropGen` generates the COM interfaces from the metadata of
+Capital's type library on your own machine, and Capital's DLL is not in the repository.
 
 | Package | Version | Used for |
 | --- | --- | --- |

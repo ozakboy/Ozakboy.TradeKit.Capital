@@ -76,6 +76,8 @@ internal sealed partial class ServeHost
         ReconnectDue,
         DomesticReadyDeadline,
         DomesticReconnectDue,
+        OverseasOptionsReadyDeadline,
+        OverseasOptionsReconnectDue,
     }
 
     /// <summary>
@@ -134,8 +136,17 @@ internal sealed partial class ServeHost
             return ServeExitCodes.SkComUnavailable;
         }
 
+        // 0.3.0:登入帳號只留在記憶體,帳務查詢與版本查詢要用(手冊的參數);絕不寫出。
+        // The login ID stays in memory for the account and version calls, which take it as a parameter; never written.
+        _loginId = login.LoginId;
+        ReadSkcomVersion();
+
         // 國內報價是選用的:建不起來只讓國內不可用,海外照常。The domestic side is optional; failing only disables it.
         OpenDomestic();
+
+        // 0.3.0:海外選擇權與帳務查詢一樣是選用的,物件在登入前建立(probe-full 的順序)。Optional too, created before login.
+        OpenOverseasOptions();
+        OpenAccounts();
 
         if (login.LogDirectory is { } logDirectory)
         {
@@ -195,6 +206,7 @@ internal sealed partial class ServeHost
         // 海外就緒後才連國內;國內的結果只改 domestic 欄位,不影響海外的 ready 與結束碼。
         // The domestic side connects only after the overseas side is ready; its outcome only changes the domestic fields.
         StartDomestic();
+        StartOverseasOptions();
 
         return await MainLoopAsync(cancellationToken).ConfigureAwait(true);
     }
@@ -243,6 +255,7 @@ internal sealed partial class ServeHost
                     {
                         CancelTimer();
                         CancelDomesticTimer();
+                        CancelOverseasOptionsTimer();
                         return ServeExitCodes.Success;
                     }
 
@@ -251,6 +264,8 @@ internal sealed partial class ServeHost
                     _log.Write("stdin 已關閉,離開報價主機後結束。");
                     CancelTimer();
                     CancelDomesticTimer();
+                    CancelOverseasOptionsTimer();
+                    LeaveOverseasOptions();
                     LeaveDomestic();
                     _ = _source.LeaveMonitor();
                     return ServeExitCodes.Success;
@@ -260,8 +275,14 @@ internal sealed partial class ServeHost
                 case DomesticConnectItem domestic:
                     HandleDomesticConnect(domestic.Code);
                     break;
+                case OverseasOptionsConnectItem options:
+                    HandleOverseasOptionsConnect(options.Code);
+                    break;
                 case TimerItem { Kind: TimerKind.DomesticReadyDeadline or TimerKind.DomesticReconnectDue } timer:
                     HandleDomesticTimer(timer);
+                    break;
+                case TimerItem { Kind: TimerKind.OverseasOptionsReadyDeadline or TimerKind.OverseasOptionsReconnectDue } timer:
+                    HandleOverseasOptionsTimer(timer);
                     break;
                 case TimerItem timer:
                     HandleTimer(timer);
@@ -406,6 +427,8 @@ internal sealed partial class ServeHost
     private sealed record ConnectItem(int Code) : InboxItem;
 
     private sealed record DomesticConnectItem(int Code) : InboxItem;
+
+    private sealed record OverseasOptionsConnectItem(int Code) : InboxItem;
 
     private sealed record TimerItem(TimerKind Kind, int Generation) : InboxItem;
 }

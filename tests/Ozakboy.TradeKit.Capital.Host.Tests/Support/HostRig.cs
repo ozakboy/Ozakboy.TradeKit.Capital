@@ -46,6 +46,12 @@ internal sealed class HostRig : IDisposable
         ReconnectDelays = [TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(100)],
         DomesticReadyTimeout = TimeSpan.FromMilliseconds(500),
         DomesticKLineTimeout = TimeSpan.FromMilliseconds(500),
+        OverseasOptionsReadyTimeout = TimeSpan.FromMilliseconds(500),
+        AccountQuiet = TimeSpan.FromMilliseconds(300),
+        AccountQuietAfterStatus = TimeSpan.FromMilliseconds(100),
+        AccountQueryLimit = TimeSpan.FromSeconds(2),
+        AccountPoll = TimeSpan.FromMilliseconds(20),
+        ReportInterval = TimeSpan.FromMilliseconds(400),
     });
 
     /// <summary>

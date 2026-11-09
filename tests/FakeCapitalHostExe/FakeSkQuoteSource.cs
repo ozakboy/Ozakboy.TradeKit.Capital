@@ -20,7 +20,7 @@ namespace FakeCapitalHostExe;
 /// with "##", ticks replayed before live ones with increasing nPtr and arriving before quotes, K-lines without an end
 /// event in the measured format, and exchange-local times.
 /// </summary>
-internal sealed class FakeSkQuoteSource : ISkQuoteSource
+internal sealed partial class FakeSkQuoteSource : ISkQuoteSource
 {
     private const int CodeConnected = 3001;
     private const int CodeDisconnected = 3002;
@@ -260,6 +260,9 @@ internal sealed class FakeSkQuoteSource : ISkQuoteSource
             }
 
             StartLiveTicks(instrument);
+
+            // 0.3.0:推定 RequestTicks 也會送五檔(比照國內 4-4-3;待實測)。Assumed: RequestTicks also sends the best 5.
+            OverseasBest5?.Invoke(FakeBooks.Book(instrument.Index, instrument.Quote.Close, 5));
         });
 
         return 0;
@@ -424,6 +427,8 @@ internal sealed class FakeSkQuoteSource : ISkQuoteSource
         {
             timer.Dispose();
         }
+
+        DisposeLive();
     }
 
     private bool ShouldCrash()

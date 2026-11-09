@@ -33,6 +33,11 @@ internal sealed partial class ServeHost
         };
         _source.DomesticKLine += OnDomesticKLine;
         _source.DomesticKLineComplete += OnDomesticKLineComplete;
+
+        // 0.3.0
+        HookLiveQuoteEvents();
+        HookOverseasOptionEvents();
+        HookAccountEvents();
     }
 
     private void CollectRow(ref RowCollector? field, string row)

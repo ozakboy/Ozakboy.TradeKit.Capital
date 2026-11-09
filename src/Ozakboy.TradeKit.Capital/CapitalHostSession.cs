@@ -270,6 +270,7 @@ public sealed partial class CapitalHostSession : IAsyncDisposable
                 _supervisorSource = null;
                 _supervisorTask = null;
                 _subscriptions.Clear();
+                ClearLiveSubscriptions();
             }
 
             if (host is not null)
@@ -284,6 +285,7 @@ public sealed partial class CapitalHostSession : IAsyncDisposable
 
             _credentials = null;
             SetDomesticState(CapitalDomesticState.NotStarted, null, null);
+            SetOverseasOptionsState(CapitalOverseasOptionsState.NotStarted, null, null);
             SetState(CapitalHostState.Stopped);
             return Result.Success();
         }
@@ -519,9 +521,13 @@ public sealed partial class CapitalHostSession : IAsyncDisposable
 
         JsonElement result = response.GetValueOrThrow();
         _ = CapitalWire.TryParseDomesticState(CapitalWire.GetString(result, "domestic"), out CapitalDomesticState domestic);
+        _ = CapitalWire.TryParseOverseasOptionsState(CapitalWire.GetString(result, "overseasOptions"), out CapitalOverseasOptionsState options);
 
         return new CapitalConnectionStatus
         {
+            OverseasOptions = options,
+            OverseasOptionsReason = CapitalWire.GetString(result, "overseasOptionsReason"),
+            SkcomVersion = CapitalWire.GetString(result, "skcomVersion"),
             Connected = result.TryGetProperty("connected", out JsonElement connected) && connected.ValueKind == JsonValueKind.True,
             Connections = CapitalWire.GetInt32(result, "connections") ?? 0,
             OutLimit = result.TryGetProperty("outLimit", out JsonElement outLimit) && outLimit.ValueKind == JsonValueKind.True,
@@ -669,6 +675,9 @@ public sealed partial class CapitalHostSession : IAsyncDisposable
                 result = result.Replace(credentials.LoginId, "<ID>", StringComparison.OrdinalIgnoreCase);
             }
         }
+
+        // 0.3.0:帳務查詢拿到(或呼叫端傳入)的帳號也換掉。Account numbers seen by the account queries are replaced too.
+        result = MaskAccounts(result);
 
         return _masker.MaskText(result) ?? string.Empty;
     }

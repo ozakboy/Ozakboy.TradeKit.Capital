@@ -12,8 +12,10 @@ namespace Ozakboy.TradeKit.Capital.Host.Serve;
 /// 事件可能從任何執行緒觸發(真 SKCOM 是 STA 訊息迴圈,假實作可能是計時器執行緒),協定層自己負責同步。
 /// Events may be raised on any thread (the real SKCOM uses the STA message loop, a fake may use a timer thread); the
 /// protocol layer does its own synchronisation.
+/// 0.3.0 起的成員(版本、國內即時報價、海外十檔、海外選擇權、期貨帳務查詢)分在 <c>ISkQuoteSource.*.cs</c>。
+/// The members added in 0.3.0 live in the ISkQuoteSource.*.cs partial files.
 /// </remarks>
-internal interface ISkQuoteSource : IDisposable
+internal partial interface ISkQuoteSource : IDisposable
 {
     /// <summary>公告(<c>OnReplyMessage</c> 的內容,不含登入帳號參數)。An announcement, without the login ID argument.</summary>
     event Action<string>? Announcement;

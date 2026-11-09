@@ -187,6 +187,7 @@ internal sealed class ProbeRunner
 
         Report(center, "leave_monitor", quote.SKOSQuoteLib_LeaveMonitor());
         _log.Event("done", new Dictionary<string, object?> { ["ticks"] = _tickCount, ["products"] = _products.Count });
+        ProbeExitGuard.Arm(0);
         ProbeLog.Say($"完成:成交 {_tickCount} 筆。輸出在 {_options.OutputDirectory}");
         return 0;
     }

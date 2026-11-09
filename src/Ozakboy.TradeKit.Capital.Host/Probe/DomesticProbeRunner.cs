@@ -132,6 +132,7 @@ internal sealed class DomesticProbeRunner
 
         Report(center, "leave_monitor", quote.SKQuoteLib_LeaveMonitor());
         _log.Event("done", new Dictionary<string, object?>());
+        ProbeExitGuard.Arm(0);
         ProbeLog.Say($"完成。輸出在 {_options.OutputDirectory}(sklog 子目錄是群益自己的紀錄,含帳號,不用給別人)");
         return 0;
     }

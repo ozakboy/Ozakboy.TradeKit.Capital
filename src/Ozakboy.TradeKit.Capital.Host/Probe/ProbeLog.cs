@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace Ozakboy.TradeKit.Capital.Host.Probe;
@@ -12,19 +13,36 @@ namespace Ozakboy.TradeKit.Capital.Host.Probe;
 /// </summary>
 internal sealed class ProbeLog : IDisposable
 {
+    // 有遮罩器時事件改用不跳脫中文的編碼器,遮罩才比對得到中文戶名(預設編碼器會把中文寫成 \uXXXX)。
+    // With a redactor, events use an encoder that keeps CJK text as is, so a Chinese name can be matched and replaced.
+    private static readonly JsonSerializerOptions RelaxedJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
     private readonly object _gate = new();
     private readonly StreamWriter _events;
     private readonly Dictionary<string, StreamWriter> _raw = new(StringComparer.Ordinal);
     private readonly string _directory;
+    private readonly ProbeRedactor? _redactor;
 
     /// <summary>
-    /// 建立輸出目錄與事件檔。
-    /// Creates the output directory and the event file.
+    /// 建立輸出目錄與事件檔(不遮罩;既有探針用)。
+    /// Creates the output directory and the event file, without redaction.
     /// </summary>
     /// <param name="directory">輸出目錄。Output directory.</param>
     public ProbeLog(string directory)
+        : this(directory, null)
+    {
+    }
+
+    /// <summary>
+    /// 建立輸出目錄與事件檔;給了遮罩器時,每個事件與每行原文寫出前都先遮罩。
+    /// Creates the output directory and the event file; with a redactor, every event and raw line is redacted first.
+    /// </summary>
+    /// <param name="directory">輸出目錄。Output directory.</param>
+    /// <param name="redactor">遮罩器(可空)。The redactor, optional.</param>
+    public ProbeLog(string directory, ProbeRedactor? redactor)
     {
         _directory = directory;
+        _redactor = redactor;
         Directory.CreateDirectory(directory);
         _events = new StreamWriter(Path.Combine(directory, "probe.jsonl"), append: false, new UTF8Encoding(false)) { AutoFlush = true };
     }
@@ -48,7 +66,7 @@ internal sealed class ProbeLog : IDisposable
             line[field.Key] = field.Value;
         }
 
-        string json = JsonSerializer.Serialize(line);
+        string json = _redactor is null ? JsonSerializer.Serialize(line) : _redactor.Redact(JsonSerializer.Serialize(line, RelaxedJson));
 
         lock (_gate)
         {
@@ -72,6 +90,11 @@ internal sealed class ProbeLog : IDisposable
     /// <param name="line">原始字串。The raw line.</param>
     public void Raw(string name, string line)
     {
+        if (_redactor is not null)
+        {
+            line = _redactor.Redact(line);
+        }
+
         lock (_gate)
         {
             if (!_raw.TryGetValue(name, out StreamWriter? writer))

@@ -160,14 +160,26 @@ internal static class CapitalErrors
     /// 宿主回應的錯誤:代碼照用(協定上就是 capital.*),群益代碼轉進 <see cref="CapitalErrorDataKeys.Code"/>。
     /// An error the host answered with: its code is used as is and Capital's code goes into Data["code"].
     /// </summary>
-    public static Error FromHost(string method, string code, string message, JsonElement data)
+    /// <param name="method">請求的 method。The method.</param>
+    /// <param name="code">宿主的錯誤碼。The host's error code.</param>
+    /// <param name="message">宿主的訊息。The host's message.</param>
+    /// <param name="data">宿主的 data。The host's data.</param>
+    /// <param name="mask">
+    /// 0.3.0:訊息與字串欄位的遮罩(帳密與已知帳號);<see langword="null"/> 不遮。Masks the message and string members; null leaves them.
+    /// </param>
+    public static Error FromHost(string method, string code, string message, JsonElement data, Func<string, string>? mask = null)
     {
+        mask ??= static text => text;
+        message = mask(message);
+
         ErrorCategory category = code switch
         {
-            CapitalErrorCodes.ProductsTimeout or CapitalErrorCodes.KLineTimeout => ErrorCategory.Timeout,
-            CapitalErrorCodes.NotConnected or CapitalErrorCodes.DomesticUnavailable => ErrorCategory.Unavailable,
+            CapitalErrorCodes.ProductsTimeout or CapitalErrorCodes.KLineTimeout or CapitalErrorCodes.AccountQueryTimeout => ErrorCategory.Timeout,
+            CapitalErrorCodes.NotConnected or CapitalErrorCodes.DomesticUnavailable or CapitalErrorCodes.OverseasOptionsUnavailable
+                or CapitalErrorCodes.AccountUnavailable or CapitalErrorCodes.AccountInitFailed or CapitalErrorCodes.AccountCertFailed => ErrorCategory.Unavailable,
             CapitalErrorCodes.RequestInvalid or CapitalErrorCodes.UnknownMethod => ErrorCategory.Unexpected,
-            CapitalErrorCodes.KLineRejected or CapitalErrorCodes.SubscribeRejected or CapitalErrorCodes.ProductsRejected => ErrorCategory.Validation,
+            CapitalErrorCodes.KLineRejected or CapitalErrorCodes.SubscribeRejected or CapitalErrorCodes.ProductsRejected
+                or CapitalErrorCodes.SubscribeLimitExceeded or CapitalErrorCodes.AccountQueryRejected or CapitalErrorCodes.AccountQueryFailed => ErrorCategory.Validation,
             _ => ErrorCategory.Unexpected,
         };
 
@@ -178,11 +190,16 @@ internal static class CapitalErrors
             error = error.WithData(CapitalErrorDataKeys.Code, value);
         }
 
+        if (CapitalWire.GetInt32(data, "limit") is { } limit)
+        {
+            error = error.WithData(CapitalErrorDataKeys.Limit, limit);
+        }
+
         foreach ((string wire, string key) in DataFields)
         {
             if (CapitalWire.GetString(data, wire) is { Length: > 0 } text)
             {
-                error = error.WithData(key, text);
+                error = error.WithData(key, mask(text));
             }
         }
 
@@ -201,5 +218,20 @@ internal static class CapitalErrors
         ("symbol", CapitalErrorDataKeys.Symbol),
         ("reason", CapitalErrorDataKeys.Reason),
         ("domestic", CapitalErrorDataKeys.DomesticState),
+        ("overseasOptions", CapitalErrorDataKeys.OverseasOptionsState),
+        ("step", CapitalErrorDataKeys.Step),
+        ("hresult", CapitalErrorDataKeys.HResult),
     ];
+
+    /// <summary>
+    /// 0.3.0:帳務查詢失敗(用戶端解析時發現的:海外查詢第一筆是錯誤、回報查詢回 M999)。<paramref name="message"/> 必須已遮罩。
+    /// An account query failure found while parsing; the message must already be masked.
+    /// </summary>
+    public static Error AccountQueryFailed(string code, string message) =>
+        new Error(
+                CapitalErrorCodes.AccountQueryFailed,
+                $"帳務查詢失敗({code}):{message}。The account query failed ({code}): {message}.",
+                ErrorCategory.Validation)
+            .WithData(CapitalErrorDataKeys.Reason, code)
+            .WithData(CapitalErrorDataKeys.Message, message);
 }

@@ -91,6 +91,37 @@ internal static class CapitalHostLog
             new EventId(4014, "CapitalHostJobUnavailable"),
             "宿主沒有放進 Job Object,父行程被強制結束時改靠宿主自己的 stdin EOF 與父行程看門狗結束 / the host is not in a Job Object; it relies on its own stdin EOF and parent watchdog:{Problem}");
 
+    private static readonly Action<ILogger, string, string, Exception?> SkcomVersionUntestedCore =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Warning,
+            new EventId(4015, "CapitalSkcomVersionUntested"),
+            CapitalErrorCodes.SkcomVersionUntested + ":SKCOM {Version} 不是實測過的版本({Tested}),照常運作;COM 介面依 2.13.59 x64 產生,群益改版若動到方法順序會呼叫錯方法,升版前請先跑探針並重跑產生器 / SKCOM is not a measured version; it keeps running, but run the probe and the generator before you upgrade。");
+
+    private static readonly Action<ILogger, string, Exception?> SkcomVersionCore =
+        LoggerMessage.Define<string>(LogLevel.Information, new EventId(4016, "CapitalSkcomVersion"), "SKCOM 版本 / SKCOM version: {Version}");
+
+    private static readonly Action<ILogger, CapitalOverseasOptionsState, CapitalOverseasOptionsState, string, Exception?> OverseasOptionsStateChangedCore =
+        LoggerMessage.Define<CapitalOverseasOptionsState, CapitalOverseasOptionsState, string>(
+            LogLevel.Information,
+            new EventId(4017, "CapitalOverseasOptionsStateChanged"),
+            "群益海外選擇權報價狀態 / Capital overseas option quote state: {Previous} → {Current}({Reason})");
+
+    private static readonly Action<ILogger, Exception?> OverseasOptionsStateHandlerFailedCore =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(4018, "CapitalOverseasOptionsStateHandlerFailed"),
+            "OverseasOptionsStateChanged 的處理常式擲出例外 / an OverseasOptionsStateChanged handler threw。");
+
+    public static void SkcomVersionUntested(ILogger logger, string version) =>
+        SkcomVersionUntestedCore(logger, version, string.Join(", ", CapitalSkcomVersion.Tested), null);
+
+    public static void SkcomVersion(ILogger logger, string version) => SkcomVersionCore(logger, version, null);
+
+    public static void OverseasOptionsStateChanged(ILogger logger, CapitalOverseasOptionsState previous, CapitalOverseasOptionsState current, string? reason) =>
+        OverseasOptionsStateChangedCore(logger, previous, current, reason ?? "-", null);
+
+    public static void OverseasOptionsStateHandlerFailed(ILogger logger, Exception exception) => OverseasOptionsStateHandlerFailedCore(logger, exception);
+
     public static void JobUnavailable(ILogger logger, string problem) => JobUnavailableCore(logger, problem, null);
 
     public static void DomesticKLineSkipped(ILogger logger, string code, int skipped, int kept) =>

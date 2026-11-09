@@ -35,4 +35,15 @@ public static class CapitalErrorDataKeys
     /// The domestic quote state at the time, as its wire string.
     /// </summary>
     public const string DomesticState = "domestic";
+
+    /// <summary>
+    /// 0.3.0:海外選擇權報價當時的狀態(協定字串,同 <see cref="DomesticState"/> 的四種)。The overseas option state at the time.
+    /// </summary>
+    public const string OverseasOptionsState = "overseasOptions";
+
+    /// <summary>0.3.0:帳務初始化失敗的步驟(<c>initialize</c> / <c>get_user_account</c> / <c>read_cert</c>)。The failed initialisation step.</summary>
+    public const string Step = "step";
+
+    /// <summary>0.3.0:上限(整數,例如國內訂閱上限)。A limit, an integer.</summary>
+    public const string Limit = "limit";
 }

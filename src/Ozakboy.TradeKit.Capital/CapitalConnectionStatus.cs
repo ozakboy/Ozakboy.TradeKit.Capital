@@ -23,4 +23,13 @@ public sealed record CapitalConnectionStatus
 
     /// <summary>國內不可用或斷線的原因(<see cref="CapitalDomesticReasons"/>)。Why the domestic side is unavailable or disconnected.</summary>
     public string? DomesticReason { get; init; }
+
+    /// <summary>0.3.0:海外選擇權報價的狀態(舊宿主沒有這個欄位時為 NotStarted)。The overseas option state.</summary>
+    public CapitalOverseasOptionsState OverseasOptions { get; init; }
+
+    /// <summary>0.3.0:海外選擇權不可用或斷線的原因。Why the overseas options are unavailable or disconnected.</summary>
+    public string? OverseasOptionsReason { get; init; }
+
+    /// <summary>0.3.0:SKCOM 版本(宿主讀不到時為 null)。The SKCOM version; null when the host could not read it.</summary>
+    public string? SkcomVersion { get; init; }
 }

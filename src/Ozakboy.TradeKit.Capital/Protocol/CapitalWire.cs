@@ -8,7 +8,7 @@ namespace Ozakboy.TradeKit.Capital.Protocol;
 /// 宿主 stdout 協定訊息的解析(DESIGN §2):status / quote / tick 事件與 products 回應。
 /// Parsing of the host's stdout protocol messages: status, quote and tick events and the products result.
 /// </summary>
-internal static class CapitalWire
+internal static partial class CapitalWire
 {
     /// <summary>
     /// 解析 status 事件的 data。
@@ -25,7 +25,11 @@ internal static class CapitalWire
             GetString(data, "message"),
             GetString(data, "domestic"),
             GetString(data, "domesticReason"),
-            GetInt32(data, "domesticCode"));
+            GetInt32(data, "domesticCode"),
+            GetString(data, "skcomVersion"),
+            GetString(data, "overseasOptions"),
+            GetString(data, "overseasOptionsReason"),
+            GetInt32(data, "overseasOptionsCode"));
 
     /// <summary>
     /// 國內狀態的協定字串 → <see cref="CapitalDomesticState"/>;不認得的字串回 <see langword="false"/>。

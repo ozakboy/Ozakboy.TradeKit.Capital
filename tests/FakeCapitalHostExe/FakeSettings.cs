@@ -96,8 +96,58 @@ internal sealed class FakeSettings
 
     public TimeSpan DomesticKLineTimeout { get; private init; } = TimeSpan.FromSeconds(60);
 
+    // ── 0.3.0(版本、國內即時報價、海外選擇權 FAKE_CAPITAL_OO_、帳務 FAKE_CAPITAL_ORDER_)。0.3.0 settings. ──
+
+    /// <summary>GetSKAPIVersionAndBit 回什麼(預設實測版本 2.13.59_x64)。The version the fake reports.</summary>
+    public string SkcomVersion { get; private init; } = "2.13.59_x64";
+
+    /// <summary>建立海外選擇權物件失敗的 HRESULT。The HRESULT OpenOverseasOptions fails with.</summary>
+    public int? OoOpenHResult { get; private init; }
+
+    /// <summary>海外選擇權 EnterMonitorLONG 的回傳代碼。The overseas option EnterMonitorLONG code.</summary>
+    public int OoEnterCode { get; private init; }
+
+    /// <summary>海外選擇權永遠不送連線事件。Never sends the overseas option connect event.</summary>
+    public bool OoNoReady { get; private init; }
+
+    /// <summary>海外選擇權就緒後多久送 3002(只斷一次)。When to send the overseas option 3002, once.</summary>
+    public TimeSpan? OoDisconnectAfter { get; private init; }
+
+    public TimeSpan OverseasOptionsReadyTimeout { get; private init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>建立 SKOrderLib 失敗的 HRESULT。The HRESULT OpenAccounts fails with.</summary>
+    public int? OrderOpenHResult { get; private init; }
+
+    /// <summary>SKOrderLib_Initialize 的回傳代碼。The Initialize code.</summary>
+    public int OrderInitCode { get; private init; }
+
+    /// <summary>ReadCertByID 的回傳代碼。The ReadCertByID code.</summary>
+    public int OrderCertCode { get; private init; }
+
+    /// <summary>國內權益數的狀態事件回 1(訊息含帳號,驗證遮罩)。The rights status answers 1 with the account in the message.</summary>
+    public bool RightsFail { get; private init; }
+
+    public TimeSpan AccountQuiet { get; private init; } = TimeSpan.FromSeconds(6);
+
+    public TimeSpan AccountQuietAfterStatus { get; private init; } = TimeSpan.FromSeconds(2);
+
+    public TimeSpan ReportInterval { get; private init; } = TimeSpan.FromSeconds(5.5);
+
     public static FakeSettings FromEnvironment() => new()
     {
+        SkcomVersion = Text("SKCOM_VERSION") ?? "2.13.59_x64",
+        OoOpenHResult = HResult("OO_OPEN_HRESULT"),
+        OoEnterCode = Int("OO_ENTER_CODE") ?? 0,
+        OoNoReady = Text("OO_NO_READY") == "1",
+        OoDisconnectAfter = Millis("OO_DISCONNECT_AFTER_MS"),
+        OverseasOptionsReadyTimeout = Millis("OO_READY_TIMEOUT_MS") ?? TimeSpan.FromSeconds(60),
+        OrderOpenHResult = HResult("ORDER_OPEN_HRESULT"),
+        OrderInitCode = Int("ORDER_INIT_CODE") ?? 0,
+        OrderCertCode = Int("ORDER_CERT_CODE") ?? 0,
+        RightsFail = Text("RIGHTS_FAIL") == "1",
+        AccountQuiet = Millis("ACCOUNT_QUIET_MS") ?? TimeSpan.FromSeconds(6),
+        AccountQuietAfterStatus = Millis("ACCOUNT_STATUS_QUIET_MS") ?? TimeSpan.FromSeconds(2),
+        ReportInterval = Millis("REPORT_INTERVAL_MS") ?? TimeSpan.FromSeconds(5.5),
         ParentCheckInterval = Millis("PARENT_CHECK_MS"),
         ExitGrace = Millis("EXIT_GRACE_MS"),
         TwOpenHResult = HResult("TW_OPEN_HRESULT"),
