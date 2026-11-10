@@ -2,7 +2,7 @@
 
 A .NET 10 client for the **overseas quotes** of Capital Securities' (群益證券) SKCOM API: international FX and
 overseas futures; since 0.2.0 also **domestic futures historical K-lines** (TAIEX, mini and micro TAIEX futures, near
-month). Version 0.3.0 (unreleased) adds domestic futures and options live quotes, the overseas best 5
+month). Version 0.3.0 adds domestic futures and options live quotes, the overseas best 5
 and best 10, overseas option quotes and **read-only futures account queries**. The package **cannot place, amend or
 cancel orders and cannot move funds**. It does not support features that need a securities account.
 

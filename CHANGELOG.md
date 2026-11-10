@@ -8,7 +8,7 @@ All notable changes to this package are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versioning follows
 [Semantic Versioning](https://semver.org/).
 
-## [0.3.0] - 未發佈 / Unreleased
+## [0.3.0] - 2026-11-10
 
 **國內期貨 / 選擇權即時報價、海外五檔 / 十檔、海外選擇權報價、期貨帳務查詢(唯讀)與 SKCOM 版本標示。依群益手冊 V2.13.59 實作,
 2026-11-09 以 `probe-full` 對真 SKCOM 2.13.59 x64 實測過格式並依實測修正(只有期貨戶、帳戶沒有部位與委託)。沒有任何下單、刪改單、出入金能力。**
